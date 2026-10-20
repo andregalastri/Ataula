@@ -12,14 +12,5 @@ export function createLogger(context: vscode.ExtensionContext): ExtensionLogger 
 }
 
 export function isSupportedFile(document: vscode.TextDocument): boolean {
-  const fileName = document.fileName.toLowerCase();
-  const langId = document.languageId;
-  return (
-    langId === 'edumark' ||
-    langId === 'markdown' ||
-    langId === 'plaintext' ||
-    fileName.endsWith('.edu') ||
-    fileName.endsWith('.md') ||
-    fileName.endsWith('.txt')
-  );
+  return !document.isClosed;
 }

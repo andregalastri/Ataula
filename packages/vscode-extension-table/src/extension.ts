@@ -2,11 +2,10 @@ import * as vscode from 'vscode';
 import { parseGeometricTable, formatGeometricTable, formatBoxDrawingTable, simplifyTable } from '@edumark/table-engine';
 import { TableCell, TableNode } from '@edumark/shared';
 import { createLogger, isSupportedFile } from './extension-support';
-import { getTableDocument, getTableEditor, getPhysicalTableText } from './table-document';
+import { getTableDocument, getTableEditor, getPhysicalTableText, getTableChangeEvent, replaceTable, createTableEdit, toEditorPosition } from './table-document';
+import { reformatTable } from './table-reformat';
 import {
-  CellPositionInfo,
   getCellAtPosition,
-  getCellLineContentBounds,
   getLineBoundaryPos,
   getMinLeadingSpacesForCell,
   getSingleCellForChange,
@@ -162,7 +161,7 @@ export function activate(context: vscode.ExtensionContext) {
       // Apply edits bottom-up to prevent line-shifting issues
       for (let i = tablesToReplace.length - 1; i >= 0; i--) {
         const { range, formatted } = tablesToReplace[i];
-        workspaceEdit.replace(document.uri, range, formatted);
+        replaceTable(workspaceEdit, document, range, formatted);
       }
       const success = await applyWorkspaceEdit(workspaceEdit, document);
       logToFile(`workspace.applyEdit success: ${success}`);
@@ -176,7 +175,7 @@ export function activate(context: vscode.ExtensionContext) {
   }
 
   async function runLiveFormatting(currentEditor: vscode.TextEditor, document: vscode.TextDocument) {
-    if (isFormatting) return;
+    if (isFormatting || currentEditor.selections.length !== 1) return;
 
     // In-memory render formatting
     if (activeTable && activeTable.documentUri.fsPath === document.uri.fsPath && activeTable.targetCursor) {
@@ -218,7 +217,7 @@ export function activate(context: vscode.ExtensionContext) {
           );
 
           const workspaceEdit = new vscode.WorkspaceEdit();
-          workspaceEdit.replace(document.uri, range, renderedTable);
+          replaceTable(workspaceEdit, document, range, renderedTable);
           success = await applyWorkspaceEdit(workspaceEdit, document);
           logToFile(`runLiveFormatting: in-memory workspace.applyEdit success: ${success}`);
         } catch (err: any) {
@@ -556,7 +555,7 @@ export function activate(context: vscode.ExtensionContext) {
       );
 
       const workspaceEdit = new vscode.WorkspaceEdit();
-      workspaceEdit.replace(document.uri, range, renderedTable);
+      replaceTable(workspaceEdit, document, range, renderedTable);
       success = await applyWorkspaceEdit(workspaceEdit, document);
       logToFile(`runLiveFormatting: workspace.applyEdit success: ${success}`);
     } catch (err: any) {
@@ -574,7 +573,7 @@ export function activate(context: vscode.ExtensionContext) {
         bufferedChanges = [];
         try {
           const bufferEdit = new vscode.WorkspaceEdit();
-          bufferEdit.insert(document.uri, currentEditor.selection.active, textToInsert);
+          bufferEdit.insert(document.uri, toEditorPosition(document, currentEditor.selection.active), textToInsert);
           isApplyingExtensionEdit = true;
           await applyWorkspaceEdit(bufferEdit, document);
         } catch (e: any) {
@@ -848,7 +847,7 @@ export function activate(context: vscode.ExtensionContext) {
         );
 
         const workspaceEdit = new vscode.WorkspaceEdit();
-        workspaceEdit.replace(document.uri, range, renderedTable);
+        replaceTable(workspaceEdit, document, range, renderedTable);
         success = await applyWorkspaceEdit(workspaceEdit, document);
       } catch (err: any) {
         logToFile(`Error applying RxC format edit: ${err.message}`);
@@ -1038,7 +1037,7 @@ export function activate(context: vscode.ExtensionContext) {
         );
 
         const workspaceEdit = new vscode.WorkspaceEdit();
-        workspaceEdit.replace(document.uri, range, renderedTable);
+        replaceTable(workspaceEdit, document, range, renderedTable);
         success = await applyWorkspaceEdit(workspaceEdit, document);
       } catch (err: any) {
         logToFile(`Error applying live format edit (layout Tab): ${err.message}`);
@@ -1285,7 +1284,7 @@ export function activate(context: vscode.ExtensionContext) {
           );
 
           const workspaceEdit = new vscode.WorkspaceEdit();
-          workspaceEdit.replace(document.uri, range, newTable);
+          replaceTable(workspaceEdit, document, range, newTable);
           success = await applyWorkspaceEdit(workspaceEdit, document);
         } catch (err: any) {
           logToFile(`Error creating new 1x1 table in layoutTab: ${err.message}`);
@@ -1322,7 +1321,7 @@ export function activate(context: vscode.ExtensionContext) {
       );
 
       const workspaceEdit = new vscode.WorkspaceEdit();
-      workspaceEdit.replace(document.uri, range, renderedTable);
+      replaceTable(workspaceEdit, document, range, renderedTable);
       success = await applyWorkspaceEdit(workspaceEdit, document);
     } catch (err: any) {
       logToFile(`Error applying live format edit (layout Tab): ${err.message}`);
@@ -1394,7 +1393,8 @@ export function activate(context: vscode.ExtensionContext) {
 
   // Format tables live when text document changes
   const documentChangeDisposable = vscode.workspace.onDidChangeTextDocument(async event => {
-    event = { ...event, document: getTableDocument(event.document) };
+    event = getTableChangeEvent(event);
+    updateTableContext(vscode.window.activeTextEditor);
     const docUriStr = event.document.uri.fsPath;
     const lastVer = lastFormattedVersions.get(docUriStr) || 0;
     if (event.document.version <= lastVer) {
@@ -1520,6 +1520,10 @@ export function activate(context: vscode.ExtensionContext) {
 
     const activeEditor = getTableEditor(vscode.window.activeTextEditor);
     if (!activeEditor || event.document !== activeEditor.document) return;
+    if (activeEditor.selections.length !== 1) {
+      activeTable = undefined;
+      return;
+    }
     if (!isSupportedFile(activeEditor.document)) return;
 
     // Only auto-resize/format in real-time when:
@@ -1953,7 +1957,7 @@ export function activate(context: vscode.ExtensionContext) {
         isFormatting = true;
         isApplyingExtensionEdit = true;
         const workspaceEdit = new vscode.WorkspaceEdit();
-        workspaceEdit.replace(event.document.uri, range, renderedTable);
+        replaceTable(workspaceEdit, event.document, range, renderedTable);
         success = await applyWorkspaceEdit(workspaceEdit, event.document);
         logToFile(`Multiline paste format applied: ${success}`);
       } catch (err: any) {
@@ -2044,7 +2048,26 @@ export function activate(context: vscode.ExtensionContext) {
     }, 100);
   });
 
+  function updateTableContext(rawEditor: vscode.TextEditor | undefined) {
+    const editor = getTableEditor(rawEditor);
+    let canEditTable = false;
+    if (editor && editor.selections.length === 1) {
+      canEditTable = /^\s*[-=_]?\|/.test(editor.document.lineAt(editor.selection.active.line).text);
+    }
+    vscode.commands.executeCommand('setContext', 'ataula.canEditTable', canEditTable);
+  }
+  context.subscriptions.push(vscode.window.onDidChangeActiveTextEditor(editor => {
+    activeTable = undefined;
+    updateTableContext(editor);
+  }));
+  updateTableContext(vscode.window.activeTextEditor);
+
   const activeTableSelectionDisposable = vscode.window.onDidChangeTextEditorSelection(event => {
+    updateTableContext(event.textEditor);
+    if (event.selections.length !== 1) {
+      activeTable = undefined;
+      return;
+    }
     // Skip selection changes triggered by our own formatting edits
     if (isApplyingExtensionEdit) return;
 
@@ -2066,7 +2089,7 @@ export function activate(context: vscode.ExtensionContext) {
       return;
     }
 
-    const position = event.selections[0].active;
+    const position = activeEditor.selection.active;
     const currentLineIdx = position.line;
     const document = activeEditor.document;
 
@@ -2148,14 +2171,7 @@ export function activate(context: vscode.ExtensionContext) {
 
 
   // 2. Table Auto-Formatter Edit Provider
-  const documentSelector: vscode.DocumentSelector = [
-    { language: 'edumark' },
-    { language: 'markdown' },
-    { language: 'plaintext' },
-    { pattern: '**/*.edu' },
-    { pattern: '**/*.md' },
-    { pattern: '**/*.txt' }
-  ];
+  const documentSelector: vscode.DocumentSelector = [{ language: '*' }];
   const formattingProvider = vscode.languages.registerDocumentFormattingEditProvider(documentSelector, {
     provideDocumentFormattingEdits(
       document: vscode.TextDocument,
@@ -2193,7 +2209,7 @@ export function activate(context: vscode.ExtensionContext) {
                   new vscode.Position(startLineIdx, 0),
                   new vscode.Position(i - 1, lines[i - 1].length)
                 );
-                edits.push(vscode.TextEdit.replace(range, formatted));
+                edits.push(createTableEdit(document, range, formatted));
               }
             } catch (e) {
               console.error('Error auto-formatting table', e);
@@ -2216,7 +2232,7 @@ export function activate(context: vscode.ExtensionContext) {
               new vscode.Position(startLineIdx, 0),
               new vscode.Position(lines.length - 1, lines[lines.length - 1].length)
             );
-            edits.push(vscode.TextEdit.replace(range, formatted));
+            edits.push(createTableEdit(document, range, formatted));
           }
         } catch (e) {
           console.error('Error auto-formatting table', e);
@@ -2229,7 +2245,7 @@ export function activate(context: vscode.ExtensionContext) {
   // Overridden Type Command to intercept character typing inside tables
   const typeCommand = vscode.commands.registerCommand('type', async (args) => {
     const activeEditor = getTableEditor(vscode.window.activeTextEditor);
-    if (!activeEditor || !isSupportedFile(activeEditor.document)) {
+    if (!activeEditor || !isSupportedFile(activeEditor.document) || activeEditor.selections.length !== 1) {
       await vscode.commands.executeCommand('default:type', args);
       return;
     }
@@ -2569,7 +2585,7 @@ export function activate(context: vscode.ExtensionContext) {
       isFormatting = true;
       isApplyingExtensionEdit = true;
       const workspaceEdit = new vscode.WorkspaceEdit();
-      workspaceEdit.replace(document.uri, range, renderedTable);
+      replaceTable(workspaceEdit, document, range, renderedTable);
       success = await applyWorkspaceEdit(workspaceEdit, document);
       logToFile(`tableEnterCommand: workspace.applyEdit success: ${success}`);
     } catch (err: any) {
@@ -2759,7 +2775,7 @@ export function activate(context: vscode.ExtensionContext) {
       );
 
       const workspaceEdit = new vscode.WorkspaceEdit();
-      workspaceEdit.replace(document.uri, range, markdownTableText);
+      replaceTable(workspaceEdit, document, range, markdownTableText);
       await applyWorkspaceEdit(workspaceEdit, document);
     } catch (err: any) {
       vscode.window.showErrorMessage(`Error al convertir a Markdown: ${err.message}`);
@@ -2910,7 +2926,7 @@ export function activate(context: vscode.ExtensionContext) {
       );
 
       const workspaceEdit = new vscode.WorkspaceEdit();
-      workspaceEdit.replace(document.uri, range, formattedAtaulaTable);
+      replaceTable(workspaceEdit, document, range, formattedAtaulaTable);
       await applyWorkspaceEdit(workspaceEdit, document);
     } catch (err: any) {
       vscode.window.showErrorMessage(`Error al convertir a Ataula: ${err.message}`);
@@ -2970,673 +2986,43 @@ export function activate(context: vscode.ExtensionContext) {
     }
   });
 
-  const selectionRangeProvider = vscode.languages.registerSelectionRangeProvider('*', {
-    provideSelectionRanges(document, positions) {
-      document = getTableDocument(document);
-      return positions.map(position => {
-        const info = getCellAtPosition(document, position);
-        if (!info) return new vscode.SelectionRange(new vscode.Range(position, position));
-
-        const { cell, startLineIdx, endLineIdx, hLines, vLines } = info;
-        const lineText = document.lineAt(position.line).text;
-        const boundaryPos = getLineBoundaryPos(lineText, vLines);
-
-        const leftSep = boundaryPos[cell.column] !== -1 ? boundaryPos[cell.column] : vLines[cell.column];
-        const rightSep = boundaryPos[cell.column + cell.colspan] !== -1 ? boundaryPos[cell.column + cell.colspan] : vLines[cell.column + cell.colspan];
-
-        if (leftSep === -1 || rightSep === -1) {
-          return new vscode.SelectionRange(new vscode.Range(position, position));
-        }
-
-        const rawCellLine = lineText.substring(leftSep + 1, rightSep);
-        const matchStart = rawCellLine.match(/^\s*/);
-        const startSpaces = matchStart ? matchStart[0].length : 0;
-        const matchEnd = rawCellLine.match(/\s*$/);
-        const endSpaces = matchEnd ? matchEnd[0].length : 0;
-
-        const contentStart = leftSep + 1 + startSpaces;
-        const contentEnd = rightSep - endSpaces;
-
-        const wordRange = document.getWordRangeAtPosition(position);
-        
-        let cellLineRange: vscode.Range;
-        if (contentStart < contentEnd) {
-          cellLineRange = new vscode.Range(
-            new vscode.Position(position.line, contentStart),
-            new vscode.Position(position.line, contentEnd)
-          );
-        } else {
-          cellLineRange = new vscode.Range(
-            new vscode.Position(position.line, leftSep + 1),
-            new vscode.Position(position.line, rightSep)
-          );
-        }
-
-        const cellStartRow = startLineIdx + hLines[cell.row] + 1;
-        const cellEndRow = startLineIdx + hLines[cell.row + cell.rowspan] - 1;
-
-        const cellFullRange = new vscode.Range(
-          new vscode.Position(cellStartRow, leftSep + 1),
-          new vscode.Position(cellEndRow, rightSep - 1)
-        );
-
-        // Entire table range
-        const tableRange = new vscode.Range(
-          new vscode.Position(startLineIdx, 0),
-          new vscode.Position(endLineIdx, document.lineAt(endLineIdx).text.length)
-        );
-
-        // Build the chain of ranges
-        let lastRange = new vscode.SelectionRange(cellLineRange);
-        if (wordRange && cellLineRange.contains(wordRange)) {
-          lastRange = new vscode.SelectionRange(wordRange, new vscode.SelectionRange(cellLineRange));
-        }
-
-        const fullCellSR = new vscode.SelectionRange(cellFullRange);
-        let curr = lastRange;
-        while (curr.parent) {
-          curr = curr.parent;
-        }
-        curr.parent = fullCellSR;
-
-        const tableSR = new vscode.SelectionRange(tableRange);
-        fullCellSR.parent = tableSR;
-
-        return lastRange;
-      });
-    }
-  });
-
-  let isConvertingSelection = false;
-  let mouseSelectionTimer: NodeJS.Timeout | undefined = undefined;
-
-  const autoSelectionDisposable = vscode.window.onDidChangeTextEditorSelection(event => {
-    const editor = getTableEditor(event.textEditor)!;
-    const isTableDoc = isSupportedFile(editor.document);
-    
-    if (isTableDoc && event.selections.length > 0) {
-      const position = editor.selection.active;
-      const info = getCellAtPosition(editor.document, position);
-      vscode.commands.executeCommand('setContext', 'ataula.isInTableCell', !!info);
-    } else {
-      vscode.commands.executeCommand('setContext', 'ataula.isInTableCell', false);
-    }
-
-    if (isConvertingSelection || isApplyingExtensionEdit || isFormatting) return;
-    if (!isTableDoc) return;
-
-    if (event.selections.length > 1 && event.selections.every(sel => sel.isEmpty)) {
-      isConvertingSelection = true;
-      try {
-        editor.selections = [editor.selections[0]];
-      } catch (e) {
-        // ignore
-      } finally {
-        isConvertingSelection = false;
-      }
+  const reformatTableCommand = vscode.commands.registerCommand('ataula.reformatTable', async () => {
+    const editor = getTableEditor(vscode.window.activeTextEditor);
+    if (!editor || editor.selections.length !== 1 || isFormatting) return;
+    const document = editor.document;
+    const position = editor.selection.active;
+    if (!document.lineAt(position.line).text.trim().startsWith('|')) {
+      vscode.window.showInformationMessage('Posicione o cursor dentro da tabela para refazer a formatação.');
       return;
     }
-
-    if (mouseSelectionTimer) {
-      clearTimeout(mouseSelectionTimer);
-      mouseSelectionTimer = undefined;
-    }
-
-    if (event.selections.length === 1 && event.kind === vscode.TextEditorSelectionChangeKind.Mouse) {
-      const selection = event.selections[0];
-      if (!selection.isEmpty && selection.start.line !== selection.end.line) {
-        const anchorInfo = getCellAtPosition(editor.document, selection.anchor);
-        
-        if (anchorInfo) {
-          mouseSelectionTimer = setTimeout(() => {
-            isConvertingSelection = true;
-            try {
-              const { cell, startLineIdx, hLines } = anchorInfo;
-              const cellStartRow = startLineIdx + hLines[cell.row] + 1;
-              const cellEndRow = startLineIdx + hLines[cell.row + cell.rowspan] - 1;
-
-              // Clamp the active position's line to the cell's rows
-              const clampedLine = Math.max(cellStartRow, Math.min(cellEndRow, selection.active.line));
-              const clampedActive = new vscode.Position(clampedLine, selection.active.character);
-
-              const vAnchor = getVirtualPosition(editor, selection.anchor, anchorInfo);
-              const vActive = getVirtualPosition(editor, clampedActive, anchorInfo);
-              applyVirtualSelection(editor, anchorInfo, vAnchor, vActive);
-            } catch (e) {
-              // ignore
-            } finally {
-              isConvertingSelection = false;
-            }
-          }, 150);
-        }
-      }
+    let start = position.line;
+    let end = position.line;
+    while (start > 0 && document.lineAt(start - 1).text.trim().startsWith('|')) start--;
+    while (end + 1 < document.lineCount && document.lineAt(end + 1).text.trim().startsWith('|')) end++;
+    const formatted = reformatTable(getPhysicalTableText(document, start, end));
+    if (!formatted) return;
+    if (debounceTimer) clearTimeout(debounceTimer);
+    debounceTimer = undefined;
+    activeTable = undefined;
+    bufferedChanges = [];
+    pendingFormat = false;
+    isFormatting = true;
+    isApplyingExtensionEdit = true;
+    try {
+      const edit = new vscode.WorkspaceEdit();
+      const range = new vscode.Range(new vscode.Position(start, 0), new vscode.Position(end, document.lineAt(end).text.length));
+      replaceTable(edit, document, range, formatted);
+      await applyWorkspaceEdit(edit, document);
+      const rendered = formatted.split('\n');
+      const line = Math.min(position.line - start, rendered.length - 1);
+      const next = new vscode.Position(start + line, Math.min(position.character, rendered[line].length - 1));
+      editor.selection = new vscode.Selection(next, next);
+    } finally {
+      isApplyingExtensionEdit = false;
+      isFormatting = false;
     }
   });
-
-  interface VirtualPosition {
-    k: number;
-    o: number;
-  }
-
-  function getVirtualPosition(editor: vscode.TextEditor, pos: vscode.Position, info: CellPositionInfo): VirtualPosition {
-    const { cell, startLineIdx, hLines, vLines } = info;
-    const cellStartRow = startLineIdx + hLines[cell.row] + 1;
-    const bounds = getCellLineContentBounds(editor.document, pos.line, cell, vLines);
-    const k = pos.line - cellStartRow;
-    const o = Math.max(0, Math.min(bounds.end - bounds.start, pos.character - bounds.start));
-    return { k, o };
-  }
-
-  function applyVirtualSelection(
-    editor: vscode.TextEditor,
-    info: CellPositionInfo,
-    vAnchor: VirtualPosition,
-    vActive: VirtualPosition
-  ) {
-    const { cell, startLineIdx, hLines, vLines } = info;
-    const cellStartRow = startLineIdx + hLines[cell.row] + 1;
-    const cellEndRow = startLineIdx + hLines[cell.row + cell.rowspan] - 1;
-
-    const N = cellEndRow - cellStartRow + 1;
-    const rowBounds: { start: number; end: number; line: number; len: number }[] = [];
-    for (let k = 0; k < N; k++) {
-      const line = cellStartRow + k;
-      const bounds = getCellLineContentBounds(editor.document, line, cell, vLines);
-      rowBounds.push({
-        line,
-        start: bounds.start,
-        end: bounds.end,
-        len: bounds.end - bounds.start
-      });
-    }
-
-    const kMin = Math.min(vAnchor.k, vActive.k);
-    const kMax = Math.max(vAnchor.k, vActive.k);
-
-    const selections: vscode.Selection[] = [];
-
-    for (let k = 0; k < N; k++) {
-      const rb = rowBounds[k];
-      if (k < kMin || k > kMax) {
-        continue;
-      }
-
-      let startO = 0;
-      let endO = rb.len;
-      let dirAnchorO = 0;
-      let dirActiveO = rb.len;
-
-      if (kMin === kMax) {
-        startO = Math.min(vAnchor.o, vActive.o);
-        endO = Math.max(vAnchor.o, vActive.o);
-        dirAnchorO = vAnchor.o;
-        dirActiveO = vActive.o;
-      } else if (k === kMin) {
-        if (vAnchor.k === kMin) {
-          startO = vAnchor.o;
-          endO = rb.len;
-          dirAnchorO = vAnchor.o;
-          dirActiveO = rb.len;
-        } else {
-          startO = vActive.o;
-          endO = rb.len;
-          dirAnchorO = rb.len;
-          dirActiveO = vActive.o;
-        }
-      } else if (k === kMax) {
-        if (vAnchor.k === kMax) {
-          startO = 0;
-          endO = vAnchor.o;
-          dirAnchorO = vAnchor.o;
-          dirActiveO = 0;
-        } else {
-          startO = 0;
-          endO = vActive.o;
-          dirAnchorO = 0;
-          dirActiveO = vActive.o;
-        }
-      } else {
-        startO = 0;
-        endO = rb.len;
-        if (vActive.k > vAnchor.k) {
-          dirAnchorO = 0;
-          dirActiveO = rb.len;
-        } else {
-          dirAnchorO = rb.len;
-          dirActiveO = 0;
-        }
-      }
-
-      const anchorPos = new vscode.Position(rb.line, rb.start + dirAnchorO);
-      const activePos = new vscode.Position(rb.line, rb.start + dirActiveO);
-      selections.push(new vscode.Selection(anchorPos, activePos));
-    }
-
-    // Move the selection on row vActive.k to the front of selections array
-    const activeLine = cellStartRow + vActive.k;
-    const activeIdx = selections.findIndex(sel => sel.active.line === activeLine);
-    if (activeIdx !== -1) {
-      const activeSel = selections[activeIdx];
-      selections.splice(activeIdx, 1);
-      selections.unshift(activeSel);
-    }
-
-    if (selections.length > 0) {
-      editor.selections = selections;
-    }
-  }
-
-  const registerNavCommand = (id: string, execute: (editor: vscode.TextEditor) => void) => {
-    context.subscriptions.push(vscode.commands.registerCommand(id, () => {
-      const editor = getTableEditor(vscode.window.activeTextEditor);
-      if (editor) execute(editor);
-    }));
-  };
-
-  registerNavCommand('ataula.cursorRight', editor => {
-    vscode.commands.executeCommand('cursorRight');
-  });
-
-  registerNavCommand('ataula.cursorLeft', editor => {
-    vscode.commands.executeCommand('cursorLeft');
-  });
-
-  function findCellAtGrid(cells: any[], row: number, col: number): any | undefined {
-    return cells.find(c => row >= c.row && row < c.row + c.rowspan && col >= c.column && col < c.column + c.colspan);
-  }
-
-  function getSelectedCells(editor: vscode.TextEditor, info: CellPositionInfo): any[] {
-    const cells: any[] = [];
-    for (const sel of editor.selections) {
-      const sInfo = getCellAtPosition(editor.document, sel.active);
-      if (sInfo && !cells.some(c => c.id === sInfo.cell.id)) {
-        cells.push(sInfo.cell);
-      }
-    }
-    if (cells.length === 0 && info) {
-      cells.push(info.cell);
-    }
-    return cells;
-  }
-
-  function selectCellsCompletely(
-    editor: vscode.TextEditor,
-    info: CellPositionInfo,
-    cellsToSelect: any[],
-    vActiveIsEnd: boolean
-  ) {
-    const { startLineIdx, hLines, vLines } = info;
-    const selections: vscode.Selection[] = [];
-
-    for (const cell of cellsToSelect) {
-      const cellStartRow = startLineIdx + hLines[cell.row] + 1;
-      const cellEndRow = startLineIdx + hLines[cell.row + cell.rowspan] - 1;
-      const N = cellEndRow - cellStartRow + 1;
-
-      for (let k = 0; k < N; k++) {
-        const line = cellStartRow + k;
-        const bounds = getCellLineContentBounds(editor.document, line, cell, vLines);
-        if (vActiveIsEnd) {
-          selections.push(new vscode.Selection(
-            new vscode.Position(line, bounds.start),
-            new vscode.Position(line, bounds.end)
-          ));
-        } else {
-          selections.push(new vscode.Selection(
-            new vscode.Position(line, bounds.end),
-            new vscode.Position(line, bounds.start)
-          ));
-        }
-      }
-    }
-
-    if (selections.length > 0) {
-      editor.selections = selections;
-    }
-  }
-
-  function isCellAtBoundary(
-    editor: vscode.TextEditor,
-    info: CellPositionInfo,
-    direction: 'right' | 'left' | 'down' | 'up'
-  ): boolean {
-    const { cell, startLineIdx, hLines, vLines } = info;
-    const cellStartRow = startLineIdx + hLines[cell.row] + 1;
-    const cellEndRow = startLineIdx + hLines[cell.row + cell.rowspan] - 1;
-
-    if (direction === 'right') {
-      const lastRowBounds = getCellLineContentBounds(editor.document, cellEndRow, cell, vLines);
-      return editor.selections.some(sel => sel.active.line === cellEndRow && sel.active.character === lastRowBounds.end);
-    } else if (direction === 'left') {
-      const firstRowBounds = getCellLineContentBounds(editor.document, cellStartRow, cell, vLines);
-      return editor.selections.some(sel => sel.active.line === cellStartRow && sel.active.character === firstRowBounds.start);
-    } else if (direction === 'down') {
-      return editor.selections.some(sel => sel.active.line === cellEndRow);
-    } else if (direction === 'up') {
-      return editor.selections.some(sel => sel.active.line === cellStartRow);
-    }
-    return false;
-  }
-
-  registerNavCommand('ataula.cursorRightSelect', editor => {
-    const info = getCellAtPosition(editor.document, editor.selection.active);
-    if (!info) {
-      vscode.commands.executeCommand('cursorRightSelect');
-      return;
-    }
-    const { cell, startLineIdx, hLines, vLines } = info;
-    const cellStartRow = startLineIdx + hLines[cell.row] + 1;
-    const cellEndRow = startLineIdx + hLines[cell.row + cell.rowspan] - 1;
-    const N = cellEndRow - cellStartRow + 1;
-
-    const rowBounds: number[] = [];
-    for (let k = 0; k < N; k++) {
-      const bounds = getCellLineContentBounds(editor.document, cellStartRow + k, cell, vLines);
-      rowBounds.push(bounds.end - bounds.start);
-    }
-
-    let vAnchor: VirtualPosition;
-    let vActive: VirtualPosition;
-
-    if (editor.selections.length === 1) {
-      vAnchor = getVirtualPosition(editor, editor.selection.anchor, info);
-      vActive = getVirtualPosition(editor, editor.selection.active, info);
-    } else {
-      const activeSel = editor.selections[0];
-      vActive = getVirtualPosition(editor, activeSel.active, info);
-      let maxDist = -1;
-      let anchorSel = activeSel;
-      for (const sel of editor.selections) {
-        const dist = Math.abs(sel.anchor.line - activeSel.active.line);
-        if (dist > maxDist) {
-          maxDist = dist;
-          anchorSel = sel;
-        }
-      }
-      vAnchor = getVirtualPosition(editor, anchorSel.anchor, info);
-    }
-
-    // Boundary check for shift+right
-    let isBoundary = false;
-    const currentCells = getSelectedCells(editor, info);
-    if (info.tableNode && info.tableNode.cells) {
-      for (const c of currentCells) {
-        const cInfo = { ...info, cell: c };
-        if (isCellAtBoundary(editor, cInfo, 'right')) {
-          isBoundary = true;
-          break;
-        }
-      }
-    }
-    if (isBoundary) {
-      const adjacentCells: any[] = [];
-      for (const c of currentCells) {
-        for (let r = c.row; r < c.row + c.rowspan; r++) {
-          const other = findCellAtGrid(info.tableNode.cells, r, c.column + c.colspan);
-          if (other && !adjacentCells.some(x => x.id === other.id) && !currentCells.some(x => x.id === other.id)) {
-            adjacentCells.push(other);
-          }
-        }
-      }
-      if (adjacentCells.length > 0) {
-        selectCellsCompletely(editor, info, [...adjacentCells, ...currentCells], true);
-        return;
-      }
-    }
-
-    let newActive: VirtualPosition;
-    if (vActive.o < rowBounds[vActive.k]) {
-      newActive = { k: vActive.k, o: vActive.o + 1 };
-    } else if (vActive.k < N - 1) {
-      newActive = { k: vActive.k + 1, o: 0 };
-    } else {
-      vscode.commands.executeCommand('cursorRightSelect');
-      return;
-    }
-
-    applyVirtualSelection(editor, info, vAnchor, newActive);
-  });
-
-  registerNavCommand('ataula.cursorLeftSelect', editor => {
-    const info = getCellAtPosition(editor.document, editor.selection.active);
-    if (!info) {
-      vscode.commands.executeCommand('cursorLeftSelect');
-      return;
-    }
-    const { cell, startLineIdx, hLines, vLines } = info;
-    const cellStartRow = startLineIdx + hLines[cell.row] + 1;
-    const cellEndRow = startLineIdx + hLines[cell.row + cell.rowspan] - 1;
-    const N = cellEndRow - cellStartRow + 1;
-
-    const rowBounds: number[] = [];
-    for (let k = 0; k < N; k++) {
-      const bounds = getCellLineContentBounds(editor.document, cellStartRow + k, cell, vLines);
-      rowBounds.push(bounds.end - bounds.start);
-    }
-
-    let vAnchor: VirtualPosition;
-    let vActive: VirtualPosition;
-
-    if (editor.selections.length === 1) {
-      vAnchor = getVirtualPosition(editor, editor.selection.anchor, info);
-      vActive = getVirtualPosition(editor, editor.selection.active, info);
-    } else {
-      const activeSel = editor.selections[0];
-      vActive = getVirtualPosition(editor, activeSel.active, info);
-      let maxDist = -1;
-      let anchorSel = activeSel;
-      for (const sel of editor.selections) {
-        const dist = Math.abs(sel.anchor.line - activeSel.active.line);
-        if (dist > maxDist) {
-          maxDist = dist;
-          anchorSel = sel;
-        }
-      }
-      vAnchor = getVirtualPosition(editor, anchorSel.anchor, info);
-    }
-
-    // Boundary check for shift+left
-    let isBoundary = false;
-    const currentCells = getSelectedCells(editor, info);
-    if (info.tableNode && info.tableNode.cells) {
-      for (const c of currentCells) {
-        const cInfo = { ...info, cell: c };
-        if (isCellAtBoundary(editor, cInfo, 'left')) {
-          isBoundary = true;
-          break;
-        }
-      }
-    }
-    if (isBoundary) {
-      const adjacentCells: any[] = [];
-      for (const c of currentCells) {
-        for (let r = c.row; r < c.row + c.rowspan; r++) {
-          const other = findCellAtGrid(info.tableNode.cells, r, c.column - 1);
-          if (other && !adjacentCells.some(x => x.id === other.id) && !currentCells.some(x => x.id === other.id)) {
-            adjacentCells.push(other);
-          }
-        }
-      }
-      if (adjacentCells.length > 0) {
-        selectCellsCompletely(editor, info, [...adjacentCells, ...currentCells], false);
-        return;
-      }
-    }
-
-    let newActive: VirtualPosition;
-    if (vActive.o > 0) {
-      newActive = { k: vActive.k, o: vActive.o - 1 };
-    } else if (vActive.k > 0) {
-      newActive = { k: vActive.k - 1, o: rowBounds[vActive.k - 1] };
-    } else {
-      vscode.commands.executeCommand('cursorLeftSelect');
-      return;
-    }
-
-    applyVirtualSelection(editor, info, vAnchor, newActive);
-  });
-
-  registerNavCommand('ataula.cursorDown', editor => {
-    vscode.commands.executeCommand('cursorDown');
-  });
-
-  registerNavCommand('ataula.cursorUp', editor => {
-    vscode.commands.executeCommand('cursorUp');
-  });
-
-  registerNavCommand('ataula.cursorDownSelect', editor => {
-    const info = getCellAtPosition(editor.document, editor.selection.active);
-    if (!info) {
-      vscode.commands.executeCommand('cursorDownSelect');
-      return;
-    }
-    const { cell, startLineIdx, hLines, vLines } = info;
-    const cellStartRow = startLineIdx + hLines[cell.row] + 1;
-    const cellEndRow = startLineIdx + hLines[cell.row + cell.rowspan] - 1;
-    const N = cellEndRow - cellStartRow + 1;
-
-    const rowBounds: number[] = [];
-    for (let k = 0; k < N; k++) {
-      const bounds = getCellLineContentBounds(editor.document, cellStartRow + k, cell, vLines);
-      rowBounds.push(bounds.end - bounds.start);
-    }
-
-    let vAnchor: VirtualPosition;
-    let vActive: VirtualPosition;
-
-    if (editor.selections.length === 1) {
-      vAnchor = getVirtualPosition(editor, editor.selection.anchor, info);
-      vActive = getVirtualPosition(editor, editor.selection.active, info);
-    } else {
-      const activeSel = editor.selections[0];
-      vActive = getVirtualPosition(editor, activeSel.active, info);
-      let maxDist = -1;
-      let anchorSel = activeSel;
-      for (const sel of editor.selections) {
-        const dist = Math.abs(sel.anchor.line - activeSel.active.line);
-        if (dist > maxDist) {
-          maxDist = dist;
-          anchorSel = sel;
-        }
-      }
-      vAnchor = getVirtualPosition(editor, anchorSel.anchor, info);
-    }
-
-    // Boundary check for shift+down
-    let isBoundary = false;
-    const currentCells = getSelectedCells(editor, info);
-    if (info.tableNode && info.tableNode.cells) {
-      for (const c of currentCells) {
-        const cInfo = { ...info, cell: c };
-        if (isCellAtBoundary(editor, cInfo, 'down')) {
-          isBoundary = true;
-          break;
-        }
-      }
-    }
-    if (isBoundary) {
-      const adjacentCells: any[] = [];
-      for (const c of currentCells) {
-        for (let col = c.column; col < c.column + c.colspan; col++) {
-          const other = findCellAtGrid(info.tableNode.cells, c.row + c.rowspan, col);
-          if (other && !adjacentCells.some(x => x.id === other.id) && !currentCells.some(x => x.id === other.id)) {
-            adjacentCells.push(other);
-          }
-        }
-      }
-      if (adjacentCells.length > 0) {
-        selectCellsCompletely(editor, info, [...adjacentCells, ...currentCells], true);
-        return;
-      }
-    }
-
-    let newActive: VirtualPosition;
-    if (vActive.k < N - 1) {
-      newActive = { k: vActive.k + 1, o: Math.min(vActive.o, rowBounds[vActive.k + 1]) };
-    } else {
-      vscode.commands.executeCommand('cursorDownSelect');
-      return;
-    }
-
-    applyVirtualSelection(editor, info, vAnchor, newActive);
-  });
-
-  registerNavCommand('ataula.cursorUpSelect', editor => {
-    const info = getCellAtPosition(editor.document, editor.selection.active);
-    if (!info) {
-      vscode.commands.executeCommand('cursorUpSelect');
-      return;
-    }
-    const { cell, startLineIdx, hLines, vLines } = info;
-    const cellStartRow = startLineIdx + hLines[cell.row] + 1;
-    const cellEndRow = startLineIdx + hLines[cell.row + cell.rowspan] - 1;
-    const N = cellEndRow - cellStartRow + 1;
-
-    const rowBounds: number[] = [];
-    for (let k = 0; k < N; k++) {
-      const bounds = getCellLineContentBounds(editor.document, cellStartRow + k, cell, vLines);
-      rowBounds.push(bounds.end - bounds.start);
-    }
-
-    let vAnchor: VirtualPosition;
-    let vActive: VirtualPosition;
-
-    if (editor.selections.length === 1) {
-      vAnchor = getVirtualPosition(editor, editor.selection.anchor, info);
-      vActive = getVirtualPosition(editor, editor.selection.active, info);
-    } else {
-      const activeSel = editor.selections[0];
-      vActive = getVirtualPosition(editor, activeSel.active, info);
-      let maxDist = -1;
-      let anchorSel = activeSel;
-      for (const sel of editor.selections) {
-        const dist = Math.abs(sel.anchor.line - activeSel.active.line);
-        if (dist > maxDist) {
-          maxDist = dist;
-          anchorSel = sel;
-        }
-      }
-      vAnchor = getVirtualPosition(editor, anchorSel.anchor, info);
-    }
-
-    // Boundary check for shift+up
-    let isBoundary = false;
-    const currentCells = getSelectedCells(editor, info);
-    if (info.tableNode && info.tableNode.cells) {
-      for (const c of currentCells) {
-        const cInfo = { ...info, cell: c };
-        if (isCellAtBoundary(editor, cInfo, 'up')) {
-          isBoundary = true;
-          break;
-        }
-      }
-    }
-    if (isBoundary) {
-      const adjacentCells: any[] = [];
-      for (const c of currentCells) {
-        for (let col = c.column; col < c.column + c.colspan; col++) {
-          const other = findCellAtGrid(info.tableNode.cells, c.row - 1, col);
-          if (other && !adjacentCells.some(x => x.id === other.id) && !currentCells.some(x => x.id === other.id)) {
-            adjacentCells.push(other);
-          }
-        }
-      }
-      if (adjacentCells.length > 0) {
-        selectCellsCompletely(editor, info, [...adjacentCells, ...currentCells], false);
-        return;
-      }
-    }
-
-    let newActive: VirtualPosition;
-    if (vActive.k > 0) {
-      newActive = { k: vActive.k - 1, o: Math.min(vActive.o, rowBounds[vActive.k - 1]) };
-    } else {
-      vscode.commands.executeCommand('cursorUpSelect');
-      return;
-    }
-
-    applyVirtualSelection(editor, info, vAnchor, newActive);
-  });
+  context.subscriptions.push(reformatTableCommand);
 
   context.subscriptions.push(formattingProvider);
   context.subscriptions.push(documentChangeDisposable);
@@ -3644,8 +3030,6 @@ export function activate(context: vscode.ExtensionContext) {
   context.subscriptions.push(tableEnterCommand);
   context.subscriptions.push(tableTabCommand);
   context.subscriptions.push(selectCellContentCommand);
-  context.subscriptions.push(selectionRangeProvider);
-  context.subscriptions.push(autoSelectionDisposable);
   context.subscriptions.push(convertToMarkdownCommand);
   context.subscriptions.push(convertToAtaulaCommand);
 }

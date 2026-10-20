@@ -2,7 +2,7 @@
   "name": "ataula-personal",
   "displayName": "Galastri Ataula",
   "description": "Edição de tabelas de texto com bordas simples, células multilinha e ajuste automático. Versão pessoal de Ataula.",
-  "version": "1.0.12",
+  "version": "1.0.13",
   "publisher": "andregalastri",
   "icon": "icon.png",
   "repository": {
@@ -17,9 +17,7 @@
     "Formatters"
   ],
   "activationEvents": [
-    "onLanguage:edumark",
-    "onLanguage:markdown",
-    "onLanguage:plaintext"
+    "onStartupFinished"
   ],
   "main": "./dist/extension.js",
   "contributes": {
@@ -68,38 +66,29 @@
         "command": "ataula.convertToAtaula",
         "title": "Converter tabela Markdown para Galastri Ataula",
         "category": "Galastri Ataula"
+      },
+      {
+        "command": "ataula.reformatTable",
+        "title": "Refazer formatação",
+        "category": "Galastri Ataula"
       }
     ],
     "keybindings": [
       {
         "command": "ataula.tableEnter",
         "key": "enter",
-        "when": "editorTextFocus && (editorLangId == edumark || editorLangId == markdown || editorLangId == plaintext || resourceExtname == .edu || resourceExtname == .md || resourceExtname == .txt)"
+        "when": "editorTextFocus && ataula.canEditTable && !editorHasMultipleSelections"
       },
       {
         "command": "ataula.tableTab",
         "key": "oem_5",
-        "when": "editorTextFocus && (editorLangId == edumark || editorLangId == markdown || editorLangId == plaintext || resourceExtname == .edu || resourceExtname == .md || resourceExtname == .txt)"
+        "when": "editorTextFocus && ataula.canEditTable && !editorHasMultipleSelections"
       },
       {
-        "command": "ataula.cursorRightSelect",
-        "key": "shift+right",
-        "when": "editorTextFocus && ataula.isInTableCell"
-      },
-      {
-        "command": "ataula.cursorLeftSelect",
-        "key": "shift+left",
-        "when": "editorTextFocus && ataula.isInTableCell"
-      },
-      {
-        "command": "ataula.cursorDownSelect",
-        "key": "shift+down",
-        "when": "editorTextFocus && ataula.isInTableCell"
-      },
-      {
-        "command": "ataula.cursorUpSelect",
-        "key": "shift+up",
-        "when": "editorTextFocus && ataula.isInTableCell"
+        "command": "ataula.reformatTable",
+        "key": "ctrl+alt+f",
+        "mac": "cmd+alt+shift+f",
+        "when": "editorTextFocus && ataula.canEditTable && !editorHasMultipleSelections"
       }
     ]
   },

@@ -34,7 +34,7 @@ Os três arquivos protegidos `test_cell_contents_editing`, `test_selection` e `t
 
 No CI, a suíte completa gera relatório JSON e `scripts/check-test-baseline.cjs` aceita exclusivamente esse teste como falha anterior. Qualquer outra falha, interrupção ou perda de cobertura faz o job falhar. Os testes unitários, de propriedade e do editor não têm essa exceção.
 
-## Validação desta implementação
+## Validação da base 1.0.12
 
 Validação completa executada pelo [GitHub Actions em 20/10/2026](https://github.com/andregalastri/Ataula/actions/runs/39482765348), no commit `1a4d9e896906449e8da6f924388b756da5f40ebc`:
 
@@ -48,6 +48,13 @@ Validação completa executada pelo [GitHub Actions em 20/10/2026](https://githu
 O CI agora gera o artefato `galastri-ataula-vsix` em pushes para `main`, somente depois que os jobs de testes passam. O artefato fica disponível por 7 dias. O workflow manual **Package personal VSIX** continua disponível.
 
 A validação inicial em V8, antes da habilitação de Actions, também havia confirmado os 19 novos testes e reproduzido o mesmo resultado de 87/88 testes do motor original.
+
+## Cobertura adicional da versão 1.0.13
+
+- 13 testes unitários de prefixos, coordenadas e reconstrução manual de tabelas.
+- 14 novos testes no host real para linguagens PHP/JavaScript/Python, multicursores nativos, seleção com Shift, comentários, citações, digitação, Enter, colagem, conversões e reformatação.
+- A suíte completa contém 122 testes; a única exceção continua sendo o caso 34 original. Os testes unitários totalizam 46 casos.
+- O instalador continua sendo `galastri-ataula.vsix`, com a versão interna 1.0.13.
 
 ## Regras de edição
 
