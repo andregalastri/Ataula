@@ -15,7 +15,7 @@ function isUnicodeBorder(line: string): boolean {
 }
 
 function boundaryColumns(line: string | undefined, side: 'up' | 'down'): number[] {
-  const columns = [];
+  const columns: number[] = [];
   if (!line) return columns;
   for (let column = 0; column < line.length; column++) {
     const char = line[column];
@@ -38,7 +38,7 @@ export function normalizeTableBorders(text: string): string {
     }
     let end = start;
     let hasUnicodeBorder = false;
-    const borders = [];
+    const borders: number[] = [];
     while (end < parts.length && tableLineStart.test(parts[end])) {
       const line = parts[end];
       if (isUnicodeBorder(line)) {
@@ -69,7 +69,7 @@ export function normalizeTableBorders(text: string): string {
         if (nextBorder < borders.length) below = originals[borders[nextBorder]];
         const expected = new Set(boundaryColumns(above, 'down'));
         for (const column of boundaryColumns(below, 'up')) expected.add(column);
-        const positions = [];
+        const positions: number[] = [];
         for (let column = 0; column < original.length; column++) {
           if (original[column] === '│') positions.push(column);
         }
