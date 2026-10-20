@@ -2640,18 +2640,19 @@ export function activate(context: vscode.ExtensionContext) {
       const newPosition = new vscode.Position(newCursorLine, newCursorChar);
       activeEditor.selection = new vscode.Selection(newPosition, newPosition);
 
-      if (activeTable) {
-        activeTable.endLineIdx = activeTable.startLineIdx + (newRawLines.length - 1);
-        activeTable.hLines = newHLines;
-        activeTable.vLines = newVLines;
-        activeTable.tableStr = formattedTable;
-        activeTable.documentVersion = document.version;
-        activeTable.targetCursor = {
-          cellId: cell.id,
-          lineIdx: lineIdx + 1,
-          charIdx: 0
-        };
-      }
+      // Enter creates a new parsed model; do not keep the old cell contents
+      // behind the freshly rendered text (the next paste/type would lose data).
+      activeTable = {
+        tableNode,
+        startLineIdx,
+        endLineIdx: startLineIdx + newRawLines.length - 1,
+        hLines: newHLines,
+        vLines: newVLines,
+        tableStr: formattedTable,
+        documentUri: document.uri,
+        documentVersion: document.version,
+        targetCursor: { cellId: cell.id, lineIdx: lineIdx + 1, charIdx: 0 }
+      };
       isApplyingExtensionEdit = false;
     }
   });

@@ -73,6 +73,16 @@ suite('Galastri Ataula in the VS Code extension host', () => {
     assert.equal(editor.selection.active.character, 2);
   });
 
+  test('keeps split content after Enter followed by another edit', async () => {
+    const editor = await open('┌────┬───┐\n│ AB │ C │\n└────┴───┘');
+    cursor(editor, 1, 3);
+    await vscode.commands.executeCommand('ataula.tableEnter');
+    await settle();
+    await vscode.commands.executeCommand('type', { text: 'X' });
+    await settle();
+    assert.equal(editor.document.getText(), '┌────┬───┐\n│ A  │ C │\n│ XB │   │\n└────┴───┘');
+  });
+
   test('formats legacy ASCII and preserves punctuation in content', async () => {
     const editor = await open('|---------|\n| x-y | z |\n|---------|');
     await format(editor);
@@ -202,7 +212,7 @@ suite('Galastri Ataula in the VS Code extension host', () => {
       await editor.edit(builder => builder.insert(editor.selection.active, 'x\ny'));
       await settle();
       assert.ok(editor.document.getText().split(/\r?\n/).every(line => line.startsWith(prefix)));
-      assert.ok(editor.document.getText().includes('ylong'));
+      assert.ok(editor.document.getText().includes('ylong'), editor.document.getText());
     });
   }
 
