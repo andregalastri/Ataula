@@ -2,7 +2,7 @@ import * as vscode from 'vscode';
 import { parseGeometricTable, formatGeometricTable, formatBoxDrawingTable, simplifyTable } from '@edumark/table-engine';
 import { TableCell, TableNode } from '@edumark/shared';
 import { createLogger, isSupportedFile } from './extension-support';
-import { getTableDocument, getTableEditor, getPhysicalTableText, getTableChangeEvent, replaceTable, createTableEdit, toEditorPosition } from './table-document';
+import { getTableDocument, getTableEditor, getPhysicalTableText, getTableChangeEvent, replaceTable, createTableEdit, toEditorPosition, getRawDocument } from './table-document';
 import { reformatTable } from './table-reformat';
 import {
   getCellAtPosition,
@@ -44,7 +44,7 @@ export function activate(context: vscode.ExtensionContext) {
   } | undefined = undefined;
 
 
-  const lastFormattedVersions = new Map<string, number>();
+  const lastFormattedVersions = new WeakMap<vscode.TextDocument, number>();
 
   function recalculateActiveTableGeometries(tableStr: string) {
     if (!activeTable) return;
@@ -78,7 +78,7 @@ export function activate(context: vscode.ExtensionContext) {
   async function applyWorkspaceEdit(workspaceEdit: vscode.WorkspaceEdit, document?: vscode.TextDocument): Promise<boolean> {
     const success = await vscode.workspace.applyEdit(workspaceEdit);
     if (success && document) {
-      lastFormattedVersions.set(document.uri.fsPath, document.version);
+      lastFormattedVersions.set(getRawDocument(document), document.version);
       logToFile(`applyWorkspaceEdit: Set lastFormattedVersion for ${document.uri.fsPath} to version ${document.version}`);
     }
     return success;
@@ -1395,8 +1395,7 @@ export function activate(context: vscode.ExtensionContext) {
   const documentChangeDisposable = vscode.workspace.onDidChangeTextDocument(async event => {
     event = getTableChangeEvent(event);
     updateTableContext(vscode.window.activeTextEditor);
-    const docUriStr = event.document.uri.fsPath;
-    const lastVer = lastFormattedVersions.get(docUriStr) || 0;
+    const lastVer = lastFormattedVersions.get(getRawDocument(event.document)) || 0;
     if (event.document.version <= lastVer) {
       logToFile(`onDidChangeTextDocument: Ignoring own format event. Version ${event.document.version} <= ${lastVer}`);
       return;
