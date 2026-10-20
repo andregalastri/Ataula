@@ -36,15 +36,18 @@ No CI, a suíte completa gera relatório JSON e `scripts/check-test-baseline.cjs
 
 ## Validação desta implementação
 
-O ambiente de edição não disponibilizou terminal Node/npm. A validação disponível executou a lógica JavaScript em V8 com um adaptador de testes:
+Validação completa executada pelo [GitHub Actions em 20/10/2026](https://github.com/andregalastri/Ataula/actions/runs/39482765348), no commit `1a4d9e896906449e8da6f924388b756da5f40ebc`:
 
-- Motor original: 87 de 88 testes passaram; falhou somente o caso 34 acima.
-- Motor com as alterações: os mesmos 87 testes passaram, com a mesma falha anterior.
-- 14 novos testes de bordas passaram, incluindo 25 combinações de tamanho de grade.
-- 200 verificações de ida e volta em tabelas geradas também passaram.
-- 5 testes do adaptador de documento/geometria passaram, inclusive com objetos congelados como os da API do VS Code.
+- Instalação das dependências e compilação TypeScript passaram.
+- 33 testes unitários passaram.
+- Teste de propriedade com 100 tabelas geradas passou, nos formatos ASCII e Unicode.
+- Suíte completa: 108 testes passaram; permanece apenas a falha anterior do caso 34, descrita acima.
+- Os 8 testes no host real do VS Code passaram em Linux e Windows.
+- VSIX gerado com sucesso: `ataula-personal-1.0.12.vsix`, aproximadamente 1,05 MB.
 
-Essa execução não substitui a compilação TypeScript nem os testes dentro do VS Code real. Esses testes foram preparados para o CI e para execução local. A geração do VSIX exige uma dessas execuções.
+O CI agora gera o artefato `galastri-ataula-vsix` em pushes para `main`, somente depois que os jobs de testes passam. O artefato fica disponível por 7 dias. O workflow manual **Package personal VSIX** continua disponível.
+
+A validação inicial em V8, antes da habilitação de Actions, também havia confirmado os 19 novos testes e reproduzido o mesmo resultado de 87/88 testes do motor original.
 
 ## Regras de edição
 

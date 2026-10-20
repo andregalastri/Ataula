@@ -15,6 +15,8 @@ Resultado: `packages/vscode-extension-table/ataula-personal-1.0.12.vsix`.
 
 Alternativa: **GitHub → Actions → Package personal VSIX → Run workflow**. Ao terminar, baixe e extraia o artefato `galastri-ataula-vsix`. Forks podem precisar habilitar Actions na primeira vez.
 
+O workflow automático **Validate Galastri Ataula** também gera o mesmo artefato após os testes de alterações em `main`. Abra a execução bem-sucedida e baixe **galastri-ataula-vsix** em **Artifacts**. Esse arquivo fica disponível por 7 dias; copie-o para a Intranet se precisar guardá-lo por mais tempo.
+
 ## Instalar
 
 1. Desinstale ou desative a extensão Ataula original para evitar conflito de comandos.
