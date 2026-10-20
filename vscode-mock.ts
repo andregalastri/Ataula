@@ -8,6 +8,14 @@ export class Position {
 
 export class Range {
   constructor(public start: Position, public end: Position) {}
+  get isEmpty() { return this.start.line === this.end.line && this.start.character === this.end.character; }
+}
+
+export enum EndOfLine { LF = 1, CRLF = 2 }
+
+export class TextEdit {
+  constructor(public range: Range, public newText: string) {}
+  static replace(range: Range, text: string) { return new TextEdit(range, text); }
 }
 
 export class Uri {
@@ -88,11 +96,15 @@ export const RelativePattern = class {};
 
 export const TextEditorEdit = class {};
 
-export const Selection = class {};
+export class Selection extends Range {
+  constructor(public anchor: Position, public active: Position) {
+    const reversed = anchor.line > active.line || (anchor.line === active.line && anchor.character > active.character);
+    if (reversed) super(active, anchor);
+    else super(anchor, active);
+  }
+}
 
 export const SnippetString = class {};
-
-export const Uri = Uri;
 
 export default {
   Position,

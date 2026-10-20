@@ -10,13 +10,13 @@ Versão pessoal de [Ataula, de Gerard FP](https://github.com/gerardfp/Ataula), c
 └────────────┴───────────────────┘
 ```
 
-As bordas fazem parte do texto salvo. A extensão mantém um único modo de edição e o ajuste automático de tamanho do Ataula. Células multilinha, mesclagens, seleção e comandos de estrutura continuam disponíveis. Não há largura máxima nem quebra automática de palavras nesta versão.
+As bordas fazem parte do texto salvo. A extensão mantém um único modo de edição e o ajuste automático de tamanho do Ataula. Células multilinha, mesclagens, seleção manual de conteúdo e comandos de estrutura continuam disponíveis. A navegação e as seleções automáticas da tabela foram removidas; os atalhos de setas e multicursores pertencem ao VS Code. Não há largura máxima nem quebra automática de palavras nesta versão.
 
 > Agentes: não modificar `test_cell_contents_editing`, `test_selection` ou `test_table_autoadjust` sem autorização explícita. Preserve as regras de edição de `table_rules.md`.
 
 ## Uso
 
-Abra um arquivo Markdown, texto simples ou EduMark (`.md`, `.txt` ou `.edu`).
+Funciona em qualquer arquivo de texto, incluindo PHP, JavaScript, Python, Markdown e arquivos sem extensão.
 
 - Para criar uma tabela vazia, digite `|2x3` (duas linhas e três colunas), deixe o cursor após o número e execute **Galastri Ataula: Aplicar alterações na estrutura da tabela**. `|-` continua sendo o atalho de criação simples.
 - Digite dentro das células: a extensão ajusta a largura das colunas como no Ataula original.
@@ -31,13 +31,21 @@ O atalho original de estrutura usa `oem_5`, cuja tecla varia conforme o teclado.
 {
   "key": "ctrl+oem_5",
   "command": "ataula.tableTab",
-  "when": "editorTextFocus && (editorLangId == markdown || editorLangId == plaintext || editorLangId == edumark)"
+  "when": "editorTextFocus"
 }
 ```
 
 Na renderização de Markdown, coloque a tabela em um **bloco de código** (`text`) para preservar espaços e alinhamento. Ela continua sendo texto; não se transforma em uma tabela HTML. Para obter uma tabela Markdown convencional, use **Converter tabela para Markdown**.
 
 Use fonte monoespaçada. O cálculo de largura original conta unidades UTF-16; emojis, caracteres de largura dupla e fontes com medidas diferentes podem desalinhá-la.
+
+## Refazer formatação e editar em comentários
+
+Com o cursor na tabela, use **Galastri Ataula: Refazer formatação** na paleta de comandos ou **Ctrl + Alt + F** (macOS: Cmd + Alt + Shift + F). O comando recalcula larguras, realinha o conteúdo à esquerda e remove o preenchimento excedente. Ele atua somente na tabela atual, sem precisar convertê-la para Markdown.
+
+As bordas podem ter indentação ou prefixos de comentário/citação: `>`, `*`, `//`, `#` e `--`. Os prefixos são mantidos durante a edição, ao pressionar Enter, nas conversões e na reformatação. Por exemplo, uma tabela dentro de um comentário PHP pode ter ` * ` antes de cada linha, entre as linhas de abertura `/*` e fechamento `*/`.
+
+**Ctrl + Alt + ↑/↓**, Shift + setas e seleções retangulares usam o comportamento nativo do VS Code. Durante a digitação com vários cursores, a extensão não reposiciona seleções nem reformata automaticamente; para ajustar as bordas depois, deixe um único cursor na tabela e execute **Refazer formatação**.
 
 ## Instalação pessoal
 
