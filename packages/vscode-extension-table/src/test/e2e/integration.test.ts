@@ -43,9 +43,11 @@ suite('Galastri Ataula in the VS Code extension host', () => {
     cursor(editor, 0, 4);
     await vscode.commands.executeCommand('ataula.tableTab');
     await settle();
+    let eol = '\n';
+    if (editor.document.eol === vscode.EndOfLine.CRLF) eol = '\r\n';
     assert.equal(editor.document.getText(), [
       '┌───┬───┐', '│   │   │', '├───┼───┤', '│   │   │', '└───┴───┘'
-    ].join('\n'));
+    ].join(eol));
     assert.equal(editor.selection.active.line, 1);
     assert.equal(editor.selection.active.character, 2);
   });
