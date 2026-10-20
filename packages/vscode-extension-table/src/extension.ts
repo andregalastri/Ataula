@@ -1,7 +1,8 @@
 import * as vscode from 'vscode';
-import { parseGeometricTable, formatGeometricTable, simplifyTable } from '@edumark/table-engine';
+import { parseGeometricTable, formatGeometricTable, formatBoxDrawingTable, simplifyTable } from '@edumark/table-engine';
 import { TableCell, TableNode } from '@edumark/shared';
 import { createLogger, isSupportedFile } from './extension-support';
+import { getTableDocument, getTableEditor, getPhysicalTableText } from './table-document';
 import {
   CellPositionInfo,
   getCellAtPosition,
@@ -16,7 +17,7 @@ import {
 export function activate(context: vscode.ExtensionContext) {
   const logToFile = createLogger(context);
   logToFile('Extension activated');
-  console.log('La extensión Ataula está activa.');
+  console.log('Galastri Ataula está ativa.');
 
   let isFormatting = false;
   let isApplyingExtensionEdit = false;
@@ -113,7 +114,7 @@ export function activate(context: vscode.ExtensionContext) {
             const tableStr = tableLines.join('\n');
             const node = parseGeometricTable(tableStr);
             if (node.cells.length > 0) {
-              const formatted = formatGeometricTable(node);
+              const formatted = formatBoxDrawingTable(node);
               if (formatted !== tableStr) {
                 const range = new vscode.Range(
                   new vscode.Position(startLineIdx, 0),
@@ -137,7 +138,7 @@ export function activate(context: vscode.ExtensionContext) {
         const tableStr = tableLines.join('\n');
         const node = parseGeometricTable(tableStr);
         if (node.cells.length > 0) {
-          const formatted = formatGeometricTable(node);
+          const formatted = formatBoxDrawingTable(node);
           if (formatted !== tableStr) {
             const range = new vscode.Range(
               new vscode.Position(startLineIdx, 0),
@@ -189,9 +190,11 @@ export function activate(context: vscode.ExtensionContext) {
       }
 
       let formattedTable;
+      let renderedTable: string;
       try {
         const preserveColWidths = activeTable.isDeletion !== true;
         formattedTable = formatGeometricTable(activeTable.tableNode, preserveColWidths);
+        renderedTable = formatBoxDrawingTable(activeTable.tableNode, preserveColWidths);
       } catch (e: any) {
         logToFile(`Error formatting table in in-memory runLiveFormatting: ${e.message}`);
         activeTable = undefined;
@@ -200,7 +203,8 @@ export function activate(context: vscode.ExtensionContext) {
 
       let success = true;
       let hadPendingFormat = pendingFormat;
-      if (formattedTable !== activeTable.tableStr) {
+      if (formattedTable !== activeTable.tableStr ||
+          getPhysicalTableText(document, activeTable.startLineIdx, activeTable.endLineIdx) !== renderedTable) {
         success = false;
         try {
           isFormatting = true;
@@ -214,7 +218,7 @@ export function activate(context: vscode.ExtensionContext) {
           );
 
           const workspaceEdit = new vscode.WorkspaceEdit();
-          workspaceEdit.replace(document.uri, range, formattedTable);
+          workspaceEdit.replace(document.uri, range, renderedTable);
           success = await applyWorkspaceEdit(workspaceEdit, document);
           logToFile(`runLiveFormatting: in-memory workspace.applyEdit success: ${success}`);
         } catch (err: any) {
@@ -229,7 +233,7 @@ export function activate(context: vscode.ExtensionContext) {
             pendingFormat = false;
             logToFile(`runLiveFormatting: pendingFormat is true. Scheduling follow-up formatting.`);
             setTimeout(async () => {
-              const editor = vscode.window.activeTextEditor;
+              const editor = getTableEditor(vscode.window.activeTextEditor);
               if (editor) {
                 await runLiveFormatting(editor, editor.document);
               }
@@ -524,14 +528,16 @@ export function activate(context: vscode.ExtensionContext) {
 
     // 2. Format the table
     let formattedTable;
+    let renderedTable: string;
     try {
       formattedTable = formatGeometricTable(tableNode);
+      renderedTable = formatBoxDrawingTable(tableNode);
     } catch (e: any) {
       logToFile(`Error formatting table in runLiveFormatting: ${e.message}`);
       return;
     }
 
-    if (formattedTable === tableStr) {
+    if (formattedTable === tableStr && getPhysicalTableText(document, startLineIdx, endLineIdx) === renderedTable) {
       return;
     }
 
@@ -550,7 +556,7 @@ export function activate(context: vscode.ExtensionContext) {
       );
 
       const workspaceEdit = new vscode.WorkspaceEdit();
-      workspaceEdit.replace(document.uri, range, formattedTable);
+      workspaceEdit.replace(document.uri, range, renderedTable);
       success = await applyWorkspaceEdit(workspaceEdit, document);
       logToFile(`runLiveFormatting: workspace.applyEdit success: ${success}`);
     } catch (err: any) {
@@ -588,7 +594,7 @@ export function activate(context: vscode.ExtensionContext) {
         }
         debounceTimer = setTimeout(() => {
           debounceTimer = undefined;
-          const editor = vscode.window.activeTextEditor;
+          const editor = getTableEditor(vscode.window.activeTextEditor);
           if (editor) {
             runLiveFormatting(editor, editor.document);
           }
@@ -823,8 +829,10 @@ export function activate(context: vscode.ExtensionContext) {
       }
 
       let formattedTable;
+      let renderedTable: string;
       try {
         formattedTable = formatGeometricTable(tableNode);
+        renderedTable = formatBoxDrawingTable(tableNode);
       } catch (e: any) {
         logToFile(`Error formatting expanded RxC table: ${e.message}`);
         return;
@@ -840,7 +848,7 @@ export function activate(context: vscode.ExtensionContext) {
         );
 
         const workspaceEdit = new vscode.WorkspaceEdit();
-        workspaceEdit.replace(document.uri, range, formattedTable);
+        workspaceEdit.replace(document.uri, range, renderedTable);
         success = await applyWorkspaceEdit(workspaceEdit, document);
       } catch (err: any) {
         logToFile(`Error applying RxC format edit: ${err.message}`);
@@ -1010,9 +1018,11 @@ export function activate(context: vscode.ExtensionContext) {
       tableNode.cells = newCells;
 
       let formattedTable;
+      let renderedTable: string;
       try {
         tableNode = simplifyTable(tableNode);
         formattedTable = formatGeometricTable(tableNode);
+        renderedTable = formatBoxDrawingTable(tableNode);
       } catch (e: any) {
         logToFile(`Error formatting table in runLayoutFormatting: ${e.message}`);
         return;
@@ -1028,7 +1038,7 @@ export function activate(context: vscode.ExtensionContext) {
         );
 
         const workspaceEdit = new vscode.WorkspaceEdit();
-        workspaceEdit.replace(document.uri, range, formattedTable);
+        workspaceEdit.replace(document.uri, range, renderedTable);
         success = await applyWorkspaceEdit(workspaceEdit, document);
       } catch (err: any) {
         logToFile(`Error applying live format edit (layout Tab): ${err.message}`);
@@ -1264,7 +1274,7 @@ export function activate(context: vscode.ExtensionContext) {
       if (isPartialBorderRow(currentLineText)) {
         let success = false;
         const eol = document.eol === vscode.EndOfLine.CRLF ? '\r\n' : '\n';
-        const newTable = `|---|${eol}|   |${eol}|---|`;
+        const newTable = `┌───┐${eol}│   │${eol}└───┘`;
         
         try {
           isFormatting = true;
@@ -1293,8 +1303,10 @@ export function activate(context: vscode.ExtensionContext) {
     }
 
     let formattedTable;
+    let renderedTable: string;
     try {
       formattedTable = formatGeometricTable(tableNode);
+      renderedTable = formatBoxDrawingTable(tableNode);
     } catch (e: any) {
       logToFile(`Error formatting table in runLayoutFormatting: ${e.message}`);
       return;
@@ -1310,7 +1322,7 @@ export function activate(context: vscode.ExtensionContext) {
       );
 
       const workspaceEdit = new vscode.WorkspaceEdit();
-      workspaceEdit.replace(document.uri, range, formattedTable);
+      workspaceEdit.replace(document.uri, range, renderedTable);
       success = await applyWorkspaceEdit(workspaceEdit, document);
     } catch (err: any) {
       logToFile(`Error applying live format edit (layout Tab): ${err.message}`);
@@ -1382,6 +1394,7 @@ export function activate(context: vscode.ExtensionContext) {
 
   // Format tables live when text document changes
   const documentChangeDisposable = vscode.workspace.onDidChangeTextDocument(async event => {
+    event = { ...event, document: getTableDocument(event.document) };
     const docUriStr = event.document.uri.fsPath;
     const lastVer = lastFormattedVersions.get(docUriStr) || 0;
     if (event.document.version <= lastVer) {
@@ -1505,7 +1518,7 @@ export function activate(context: vscode.ExtensionContext) {
       return;
     }
 
-    const activeEditor = vscode.window.activeTextEditor;
+    const activeEditor = getTableEditor(vscode.window.activeTextEditor);
     if (!activeEditor || event.document !== activeEditor.document) return;
     if (!isSupportedFile(activeEditor.document)) return;
 
@@ -1654,7 +1667,7 @@ export function activate(context: vscode.ExtensionContext) {
             debounceTimer = setTimeout(async () => {
               debounceTimer = undefined;
               logToFile(`onDidChangeTextDocument: in-memory live format debounce timeout firing`);
-              const currentEditor = vscode.window.activeTextEditor;
+              const currentEditor = getTableEditor(vscode.window.activeTextEditor);
               if (!currentEditor || currentEditor.document !== event.document) return;
               await runLiveFormatting(currentEditor, event.document);
             }, 0);
@@ -1919,9 +1932,11 @@ export function activate(context: vscode.ExtensionContext) {
       }
       
       let formattedTable;
+      let renderedTable: string;
       try {
         tableNode = simplifyTable(tableNode);
         formattedTable = formatGeometricTable(tableNode, true);
+        renderedTable = formatBoxDrawingTable(tableNode, true);
       } catch (e: any) {
         logToFile(`Error formatting table in paste interceptor: ${e.message}`);
         return;
@@ -1938,7 +1953,7 @@ export function activate(context: vscode.ExtensionContext) {
         isFormatting = true;
         isApplyingExtensionEdit = true;
         const workspaceEdit = new vscode.WorkspaceEdit();
-        workspaceEdit.replace(event.document.uri, range, formattedTable);
+        workspaceEdit.replace(event.document.uri, range, renderedTable);
         success = await applyWorkspaceEdit(workspaceEdit, event.document);
         logToFile(`Multiline paste format applied: ${success}`);
       } catch (err: any) {
@@ -2022,7 +2037,7 @@ export function activate(context: vscode.ExtensionContext) {
         pendingFormat = true;
         return;
       }
-      const currentEditor = vscode.window.activeTextEditor;
+      const currentEditor = getTableEditor(vscode.window.activeTextEditor);
       if (!currentEditor || currentEditor.document !== event.document) return;
 
       await runLiveFormatting(currentEditor, event.document);
@@ -2045,7 +2060,7 @@ export function activate(context: vscode.ExtensionContext) {
       }
     }
 
-    const activeEditor = event.textEditor;
+    const activeEditor = getTableEditor(event.textEditor);
     if (!activeEditor || !isSupportedFile(activeEditor.document)) {
       activeTable = undefined;
       return;
@@ -2147,6 +2162,7 @@ export function activate(context: vscode.ExtensionContext) {
       options: vscode.FormattingOptions,
       token: vscode.CancellationToken
     ): vscode.ProviderResult<vscode.TextEdit[]> {
+      document = getTableDocument(document);
       const edits: vscode.TextEdit[] = [];
       const text = document.getText();
       const lines = text.split(/\r?\n/);
@@ -2172,7 +2188,7 @@ export function activate(context: vscode.ExtensionContext) {
               const tableStr = tableLines.join('\n');
               const node = parseGeometricTable(tableStr);
               if (node.cells.length > 0) {
-                const formatted = formatGeometricTable(node);
+                const formatted = formatBoxDrawingTable(node);
                 const range = new vscode.Range(
                   new vscode.Position(startLineIdx, 0),
                   new vscode.Position(i - 1, lines[i - 1].length)
@@ -2195,7 +2211,7 @@ export function activate(context: vscode.ExtensionContext) {
           const tableStr = tableLines.join('\n');
           const node = parseGeometricTable(tableStr);
           if (node.cells.length > 0) {
-            const formatted = formatGeometricTable(node);
+            const formatted = formatBoxDrawingTable(node);
             const range = new vscode.Range(
               new vscode.Position(startLineIdx, 0),
               new vscode.Position(lines.length - 1, lines[lines.length - 1].length)
@@ -2212,7 +2228,7 @@ export function activate(context: vscode.ExtensionContext) {
   });
   // Overridden Type Command to intercept character typing inside tables
   const typeCommand = vscode.commands.registerCommand('type', async (args) => {
-    const activeEditor = vscode.window.activeTextEditor;
+    const activeEditor = getTableEditor(vscode.window.activeTextEditor);
     if (!activeEditor || !isSupportedFile(activeEditor.document)) {
       await vscode.commands.executeCommand('default:type', args);
       return;
@@ -2342,7 +2358,7 @@ export function activate(context: vscode.ExtensionContext) {
 
   // 3. Table Enter Command
   const tableEnterCommand = vscode.commands.registerCommand('ataula.tableEnter', async () => {
-    const activeEditor = vscode.window.activeTextEditor;
+    const activeEditor = getTableEditor(vscode.window.activeTextEditor);
     const isTableDoc = activeEditor && isSupportedFile(activeEditor.document);
     if (!activeEditor || !isTableDoc) {
       await vscode.commands.executeCommand('type', { text: '\n' });
@@ -2533,8 +2549,10 @@ export function activate(context: vscode.ExtensionContext) {
 
     // Format the modified table
     let formattedTable;
+    let renderedTable: string;
     try {
       formattedTable = formatGeometricTable(tableNode);
+      renderedTable = formatBoxDrawingTable(tableNode);
     } catch (e) {
       await vscode.commands.executeCommand('type', { text: '\n' });
       return;
@@ -2551,7 +2569,7 @@ export function activate(context: vscode.ExtensionContext) {
       isFormatting = true;
       isApplyingExtensionEdit = true;
       const workspaceEdit = new vscode.WorkspaceEdit();
-      workspaceEdit.replace(document.uri, range, formattedTable);
+      workspaceEdit.replace(document.uri, range, renderedTable);
       success = await applyWorkspaceEdit(workspaceEdit, document);
       logToFile(`tableEnterCommand: workspace.applyEdit success: ${success}`);
     } catch (err: any) {
@@ -2623,7 +2641,7 @@ export function activate(context: vscode.ExtensionContext) {
   });
 
   const tableTabCommand = vscode.commands.registerCommand('ataula.tableTab', async () => {
-    const activeEditor = vscode.window.activeTextEditor;
+    const activeEditor = getTableEditor(vscode.window.activeTextEditor);
     const isTableDoc = activeEditor && isSupportedFile(activeEditor.document);
     if (!activeEditor || !isTableDoc) {
       await vscode.commands.executeCommand('type', { text: 'º' });
@@ -2659,7 +2677,7 @@ export function activate(context: vscode.ExtensionContext) {
   });
 
   const convertToMarkdownCommand = vscode.commands.registerCommand('ataula.convertToMarkdown', async () => {
-    const activeEditor = vscode.window.activeTextEditor;
+    const activeEditor = getTableEditor(vscode.window.activeTextEditor);
     if (!activeEditor) return;
 
     const document = activeEditor.document;
@@ -2752,7 +2770,7 @@ export function activate(context: vscode.ExtensionContext) {
   });
 
   const convertToAtaulaCommand = vscode.commands.registerCommand('ataula.convertToAtaula', async () => {
-    const activeEditor = vscode.window.activeTextEditor;
+    const activeEditor = getTableEditor(vscode.window.activeTextEditor);
     if (!activeEditor) return;
 
     const document = activeEditor.document;
@@ -2877,7 +2895,7 @@ export function activate(context: vscode.ExtensionContext) {
 
     let formattedAtaulaTable;
     try {
-      formattedAtaulaTable = formatGeometricTable(tableNode);
+      formattedAtaulaTable = formatBoxDrawingTable(tableNode);
     } catch (e: any) {
       vscode.window.showErrorMessage(`No se pudo formatear la tabla Ataula: ${e.message}`);
       return;
@@ -2903,7 +2921,7 @@ export function activate(context: vscode.ExtensionContext) {
   });
 
   const selectCellContentCommand = vscode.commands.registerCommand('ataula.selectCellContent', () => {
-    const activeEditor = vscode.window.activeTextEditor;
+    const activeEditor = getTableEditor(vscode.window.activeTextEditor);
     if (!activeEditor) return;
 
     const document = activeEditor.document;
@@ -2954,6 +2972,7 @@ export function activate(context: vscode.ExtensionContext) {
 
   const selectionRangeProvider = vscode.languages.registerSelectionRangeProvider('*', {
     provideSelectionRanges(document, positions) {
+      document = getTableDocument(document);
       return positions.map(position => {
         const info = getCellAtPosition(document, position);
         if (!info) return new vscode.SelectionRange(new vscode.Range(position, position));
@@ -3032,7 +3051,7 @@ export function activate(context: vscode.ExtensionContext) {
   let mouseSelectionTimer: NodeJS.Timeout | undefined = undefined;
 
   const autoSelectionDisposable = vscode.window.onDidChangeTextEditorSelection(event => {
-    const editor = event.textEditor;
+    const editor = getTableEditor(event.textEditor)!;
     const isTableDoc = isSupportedFile(editor.document);
     
     if (isTableDoc && event.selections.length > 0) {
@@ -3209,7 +3228,7 @@ export function activate(context: vscode.ExtensionContext) {
 
   const registerNavCommand = (id: string, execute: (editor: vscode.TextEditor) => void) => {
     context.subscriptions.push(vscode.commands.registerCommand(id, () => {
-      const editor = vscode.window.activeTextEditor;
+      const editor = getTableEditor(vscode.window.activeTextEditor);
       if (editor) execute(editor);
     }));
   };

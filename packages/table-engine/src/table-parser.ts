@@ -1,4 +1,5 @@
 import { TableNode, TableCell } from '@edumark/shared';
+import { normalizeTableBorders } from './table-borders.js';
 
 // Disjoint Set Union (DSU) to group grid units
 class DSU {
@@ -25,6 +26,7 @@ class DSU {
 
 export function parseGeometricTable(tableStr: string, isRubric = false, preserveEmptyLines = false, autoCorrectPipes = false): TableNode {
   // 1. Normalize lines and pad them to equal length
+  tableStr = normalizeTableBorders(tableStr);
   const rawLines = tableStr.split(/\r?\n/).map(line => line.trimEnd());
   const lines = rawLines.filter(line => line.length > 0);
   if (lines.length === 0) {
@@ -104,7 +106,10 @@ export function parseGeometricTable(tableStr: string, isRubric = false, preserve
                 closestIdx = vIdx;
               }
             }
-            boundaryPos[closestIdx] = s;
+            if (boundaryPos[closestIdx] === -1 ||
+                Math.abs(s - vLines[closestIdx]) < Math.abs(boundaryPos[closestIdx] - vLines[closestIdx])) {
+              boundaryPos[closestIdx] = s;
+            }
           }
 
           let lineChanged = false;
@@ -374,7 +379,10 @@ export function parseGeometricTable(tableStr: string, isRubric = false, preserve
                     closestIdx = vIdx;
                   }
                 }
-                boundaryPos[closestIdx] = s;
+                if (boundaryPos[closestIdx] === -1 ||
+                    Math.abs(s - vLines[closestIdx]) < Math.abs(boundaryPos[closestIdx] - vLines[closestIdx])) {
+                  boundaryPos[closestIdx] = s;
+                }
               }
             }
           } else {
@@ -389,7 +397,10 @@ export function parseGeometricTable(tableStr: string, isRubric = false, preserve
                   closestIdx = vIdx;
                 }
               }
-              boundaryPos[closestIdx] = s;
+              if (boundaryPos[closestIdx] === -1 ||
+                  Math.abs(s - vLines[closestIdx]) < Math.abs(boundaryPos[closestIdx] - vLines[closestIdx])) {
+                boundaryPos[closestIdx] = s;
+              }
             }
           }
 

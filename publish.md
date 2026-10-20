@@ -1,68 +1,40 @@
-# Guía de Publicación en el VS Code Marketplace 🚀
+# Instalador pessoal e Intranet
 
-Esta guía detalla los pasos para empaquetar y publicar la extensión **Ataula** bajo tu perfil de editor en el Marketplace de Visual Studio Code.
+Esta versão não é publicada no Marketplace nem no Open VSX. Não precisa de conta de publisher, token de publicação ou catálogo próprio.
 
----
+## Gerar o VSIX
 
-## 📋 Requisitos Previos (Solo la primera vez)
+Com Node.js 22 e npm, na raiz do repositório:
 
-1. **Crear una cuenta de Microsoft**: Necesitas una cuenta de Microsoft activa o vinculada a GitHub.
-2. **Crear un perfil de Editor (Publisher)**:
-   - Ve al portal de **[Visual Studio Marketplace Publisher](https://marketplace.visualstudio.com/manage)**.
-   - Crea un **Publisher ID** con el nombre exacto: **`gerardfp`** (debe coincidir con la propiedad `"publisher"` de tu [`package.json`](./packages/vscode-extension-table/package.json)).
-3. **Crear un Personal Access Token (PAT) en Azure DevOps**:
-   - Inicia sesión en **[Azure DevOps](https://dev.azure.com/)**.
-   - Haz clic en tu perfil arriba a la derecha y selecciona **Personal Access Tokens**.
-   - Crea un nuevo token con:
-     - **Organization**: `All accessible organizations`.
-     - **Scopes**: Selecciona **Custom defined** e indica los permisos de **Marketplace** -> **Acquire** y **Manage**.
-   - Copia y guarda a buen recaudo el token PAT generado (no se volverá a mostrar).
+```sh
+npm ci
+npm run package:vsix
+```
 
----
+Resultado: `packages/vscode-extension-table/ataula-personal-1.0.12.vsix`.
 
-## 🛠️ Empaquetado de la Extensión (`.vsix`)
+Alternativa: **GitHub → Actions → Package personal VSIX → Run workflow**. Ao terminar, baixe e extraia o artefato `galastri-ataula-vsix`. Forks podem precisar habilitar Actions na primeira vez.
 
-El formato de distribución oficial de las extensiones de VS Code es un archivo `.vsix`. Sigue estos comandos en la terminal desde el directorio raíz:
+## Instalar
 
-1. **Compilar todo el monorepo**:
-   ```bash
-   npm run build
-   ```
-2. **Navegar a la carpeta de la extensión**:
-   ```bash
-   cd packages/vscode-extension-table
-   ```
-3. **Generar el paquete `.vsix`**:
-   ```bash
-   npx @vscode/vsce package
-   ```
-   *Esto compilará el paquete y creará el archivo de distribución `ataula-vscode-extension-1.0.5.vsix` en esa misma carpeta.*
+1. Desinstale ou desative a extensão Ataula original para evitar conflito de comandos.
+2. No VS Code, abra Extensões → **…** → **Instalar do VSIX…**.
+3. Escolha o arquivo e recarregue a janela se solicitado.
 
----
+Pelo terminal:
 
-## 🚢 Métodos de Publicación
+```sh
+code --install-extension ataula-personal-1.0.12.vsix
+```
 
-### Opción A: Publicación Web (Recomendada y Visual)
-1. Entra en el panel de control de editores: **[Marketplace Publisher Portal](https://marketplace.visualstudio.com/manage)**.
-2. Haz clic sobre tu perfil **`gerardfp`**.
-3. Haz clic en **New Extension** -> **Visual Studio Code**.
-4. Arrastra y suelta el archivo `.vsix` recién generado (`packages/vscode-extension-table/ataula-vscode-extension-1.0.5.vsix`).
-5. Tras unos breves minutos de verificación de seguridad, la extensión estará en línea.
+A identificação é `andregalastri.ataula-personal`, com nome visível **Galastri Ataula**. Ela não recebe as atualizações do Ataula original.
 
-### Opción B: Publicación por Consola (CLI)
-1. Desde la carpeta de la extensión (`packages/vscode-extension-table`), inicia sesión introduciendo tu token PAT:
-   ```bash
-   npx @vscode/vsce login gerardfp
-   ```
-2. Sube y publica la extensión directamente:
-   ```bash
-   npx @vscode/vsce publish
-   ```
+## Disponibilizar na Intranet
 
----
+Copie o VSIX para uma pasta servida pelo seu servidor HTTP interno e crie um link de download na página da Intranet. O usuário baixa o arquivo e segue a instalação acima. Não é necessário montar um servidor de extensões do VS Code.
 
-## 💡 Flujo de Actualización en el Futuro
-Para subir una nueva versión de la extensión en el futuro:
-1. Incrementa la versión en el [`package.json`](./packages/vscode-extension-table/package.json) (por ejemplo, a `"1.0.1"`).
-2. Compila el monorepo: `npm run build`.
-3. Ve a `packages/vscode-extension-table` y ejecuta `npx @vscode/vsce publish` (o arrastra el nuevo `.vsix` en el portal web).
+O servidor e seu endereço serão definidos na instalação da Intranet; este repositório apenas prepara o instalador e as instruções. Nenhum servidor foi configurado automaticamente.
+
+Para atualizar, aumente a versão em `packages/vscode-extension-table/package.json`, atualize o lockfile com `npm install --package-lock-only`, gere outro VSIX e substitua o link interno. A instalação da nova versão também é manual.
+
+Mantenha o arquivo LICENSE e os créditos no pacote. A licença do projeto continua sendo GPL-3.0-or-later.

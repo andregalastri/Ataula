@@ -1,33 +1,34 @@
-// Property‑based tests for the table parser using fast‑check
+import { test, expect } from 'vitest';
 import fc from 'fast-check';
-import { parseGeometricTable } from '../../src/table-parser';
+import type { TableNode } from '@edumark/shared';
+import { parseGeometricTable } from '../table-parser.js';
+import { formatGeometricTable, formatBoxDrawingTable } from '../table-formatter.js';
 
-function randomTable(): fc.Arbitrary<string> {
-  return fc.tuple(fc.integer({ min: 1, max: 5 }), fc.integer({ min: 1, max: 5 }))
-    .chain(([cols, rows]) => {
-      const colWidths = fc.array(fc.integer({ min: 1, max: 10 }), { minLength: cols, maxLength: cols });
-      return colWidths.chain(widths =>
-        fc.array(
-          fc.tuple(...Array(cols).fill(fc.string({ maxLength: 8 }))),
-          { minLength: rows, maxLength: rows }
-        ).chain(rowsArr => {
-          const lines = rowsArr.map(cells => {
-            const line = cells.map((c, i) => String(c).padEnd(widths[i])).join('|');
-            return `|${line}|`;
-          });
-          return fc.constant(lines.join('\n'));
-        })
+const text = fc.array(fc.constantFrom('a', 'b', 'é', ' ', '-', '_', '/', '.'), { maxLength: 12 })
+  .map(chars => ('v' + chars.join('')).trimEnd());
+
+const tables = fc.tuple(fc.integer({ min: 1, max: 5 }), fc.integer({ min: 1, max: 5 }))
+  .chain(([rows, columns]) => fc.array(fc.array(text, { minLength: 1, maxLength: 3 }), {
+    minLength: rows * columns, maxLength: rows * columns
+  }).map(contents => ({
+    type: 'table' as const, rowsCount: rows, colsCount: columns,
+    cells: contents.map((content, index) => ({
+      id: String(index), row: Math.floor(index / columns), column: index % columns,
+      rowspan: 1, colspan: 1, content
+    }))
+  })));
+
+test('ASCII and box drawing format/parse are stable for generated tables', () => {
+  fc.assert(fc.property(tables, (table: TableNode) => {
+    for (const format of [formatGeometricTable, formatBoxDrawingTable]) {
+      const rendered = format(table);
+      const parsed = parseGeometricTable(rendered);
+      expect(parsed.rowsCount).toBe(table.rowsCount);
+      expect(parsed.colsCount).toBe(table.colsCount);
+      expect(parsed.cells.map(cell => cell.content)).toEqual(
+        table.cells.map(cell => cell.content.map(line => line.trimEnd()))
       );
-    });
-}
-
-test('parse → format is idempotent', () => {
-  fc.assert(
-    fc.property(randomTable(), (tableStr) => {
-      const parsed = parseGeometricTable(tableStr, { autoCorrectPipes: true });
-      const formatted = parsed.toString();
-      const reparsed = parseGeometricTable(formatted, { autoCorrectPipes: true });
-      return JSON.stringify(parsed) === JSON.stringify(reparsed);
-    })
-  );
+      expect(format(parsed)).toBe(rendered);
+    }
+  }), { numRuns: 100, seed: 20261020 });
 });

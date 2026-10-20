@@ -1,2 +1,5 @@
 /node_modules
 /.vscode-test
+**/*.tsbuildinfo
+**/*.vsix
+vitest-results.json

@@ -1,13 +1,13 @@
 {
-  "name": "ataula-vscode-extension",
-  "displayName": "Ataula",
-  "description": "Multi-line cell editing, auto-resize, and smart selection for text and Markdown tables.",
-  "version": "1.0.11",
-  "publisher": "gerardfp",
+  "name": "ataula-personal",
+  "displayName": "Galastri Ataula",
+  "description": "Edição de tabelas de texto com bordas simples, células multilinha e ajuste automático. Versão pessoal de Ataula.",
+  "version": "1.0.12",
+  "publisher": "andregalastri",
   "icon": "icon.png",
   "repository": {
     "type": "git",
-    "url": "https://github.com/gerardfp/Ataula"
+    "url": "https://github.com/andregalastri/Ataula"
   },
   "license": "GPL-3.0-or-later",
   "engines": {
@@ -46,28 +46,28 @@
     "commands": [
       {
         "command": "ataula.tableEnter",
-        "title": "Ataula: Insertar nueva línea en celda de tabla",
-        "category": "Ataula"
+        "title": "Inserir linha dentro da célula",
+        "category": "Galastri Ataula"
       },
       {
         "command": "ataula.tableTab",
-        "title": "Ataula: Autoformatear layout de tabla con la tecla º",
-        "category": "Ataula"
+        "title": "Aplicar alterações na estrutura da tabela",
+        "category": "Galastri Ataula"
       },
       {
         "command": "ataula.selectCellContent",
-        "title": "Ataula: Seleccionar contenido completo de celda de tabla",
-        "category": "Ataula"
+        "title": "Selecionar conteúdo da célula",
+        "category": "Galastri Ataula"
       },
       {
         "command": "ataula.convertToMarkdown",
-        "title": "Ataula: Convertir tabla Ataula a Markdown",
-        "category": "Ataula"
+        "title": "Converter tabela para Markdown",
+        "category": "Galastri Ataula"
       },
       {
         "command": "ataula.convertToAtaula",
-        "title": "Ataula: Convertir tabla Markdown a Ataula",
-        "category": "Ataula"
+        "title": "Converter tabela Markdown para Galastri Ataula",
+        "category": "Galastri Ataula"
       }
     ],
     "keybindings": [
@@ -106,7 +106,8 @@
   "scripts": {
     "vscode:prepublish": "npm run compile",
     "compile": "npx esbuild ./src/extension.ts --bundle --platform=node --target=node18 --external:vscode --outfile=./dist/extension.js",
-    "watch": "tsc -watch -p ./"
+    "watch": "tsc -watch -p ./",
+    "package:vsix": "npx --yes @vscode/vsce package --no-dependencies"
   },
   "dependencies": {},
   "devDependencies": {

@@ -11,3 +11,5 @@ tsconfig.tsbuildinfo
 src/**
 node_modules/**
 **/*.map
+
+**/*.vsix

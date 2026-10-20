@@ -1,6 +1,7 @@
 import * as vscode from 'vscode';
 import { parseGeometricTable } from '@edumark/table-engine';
 import { TableCell, TableNode } from '@edumark/shared';
+import { getTableDocument } from './table-document';
 
 export interface CellPositionInfo {
   cell: TableCell;
@@ -27,6 +28,7 @@ export function getLineBoundaryPos(lineText: string, vLines: number[]): number[]
   if (lineVLines.length >= 2 && vLines.length >= 2) {
     boundaryPos[0] = lineVLines[0];
     boundaryPos[vLines.length - 1] = lineVLines[lineVLines.length - 1];
+    if (vLines.length <= 2) return boundaryPos;
     for (let k = 1; k < lineVLines.length - 1; k++) {
       const s = lineVLines[k];
       let closestIdx = 1;
@@ -38,7 +40,10 @@ export function getLineBoundaryPos(lineText: string, vLines: number[]): number[]
           closestIdx = idx;
         }
       }
-      boundaryPos[closestIdx] = s;
+      if (boundaryPos[closestIdx] === -1 ||
+          Math.abs(s - vLines[closestIdx]) < Math.abs(boundaryPos[closestIdx] - vLines[closestIdx])) {
+        boundaryPos[closestIdx] = s;
+      }
     }
   }
   return boundaryPos;
@@ -88,6 +93,7 @@ export function isPartialBorderRow(text: string): boolean {
 }
 
 export function getCellAtPosition(document: vscode.TextDocument, position: vscode.Position): CellPositionInfo | undefined {
+  document = getTableDocument(document);
   const currentLineIdx = position.line;
   const currentLineText = document.lineAt(currentLineIdx).text;
 
@@ -189,6 +195,7 @@ export function getCellLineContentBounds(
   cell: TableCell,
   vLines: number[]
 ): { start: number; end: number } {
+  document = getTableDocument(document);
   const lText = document.lineAt(rIdx).text;
   const bPos = getLineBoundaryPos(lText, vLines);
   const lSep = bPos[cell.column] !== -1 ? bPos[cell.column] : vLines[cell.column];

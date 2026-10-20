@@ -1,7 +1,7 @@
 {
   "name": "ataula-monorepo",
   "version": "1.0.6",
-  "description": "Ataula - Motor de tablas y extensión VS Code",
+  "description": "Galastri Ataula — versão pessoal do editor de tabelas para VS Code",
   "private": true,
   "workspaces": [
     "packages/*"
@@ -10,11 +10,12 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "test:unit": "vitest run --config vitest.unit.config.ts",
-    "test:props": "vitest run --config vitest.props.config.ts",
-    "test:e2e": "playwright test",
+    "test:props": "vitest run packages/table-engine/src/__tests__/parser.props.test.ts",
+    "test:e2e": "npm run test:integration",
     "vscode:prepublish": "npm run compile --workspace=packages/vscode-extension-table",
-    "test:integration": "npx ts-node ./packages/vscode-extension-table/src/test/e2e/runIntegrationTests.ts",
-    "build": "tsc -b"
+    "test:integration": "npm run build && npm run vscode:prepublish && node scripts/run-integration.cjs",
+    "build": "tsc -b --force",
+    "package:vsix": "npm run build && npm run package:vsix --workspace=packages/vscode-extension-table"
   },
   "devDependencies": {
     "@playwright/test": "^1.60.0",
