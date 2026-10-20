@@ -8,7 +8,12 @@ const failures = report.testResults.flatMap(file =>
 const allowed = failures.length === 1 &&
   failures[0].file.replace(/\\/g, '/').endsWith('/packages/table-engine/src/table-editing-integration.test.ts') &&
   failures[0].test.title === 'should simulate Content Editing Case 34 correctly' &&
-  report.numFailedTestSuites === 1 &&
+  // Vitest 1.x counts suite/hook errors separately from assertion failures.
+  report.numFailedTestSuites === 0 &&
+  report.numFailedTests === 1 &&
+  report.testResults.filter(file => file.status === 'failed').length === 1 &&
+  report.testResults.every(file => !file.message &&
+    file.assertionResults.every(test => test.status === 'passed' || test.status === 'failed')) &&
   !report.wasInterrupted &&
   (!report.unhandledErrors || report.unhandledErrors.length === 0) &&
   report.numTotalTests >= 109 &&
