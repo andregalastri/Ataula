@@ -41,10 +41,10 @@ Use fonte monoespaçada. O cálculo de largura original conta unidades UTF-16; e
 
 A extensão tem o identificador `andregalastri.ataula-personal` e aparece como **Galastri Ataula**. Desinstale ou desative a Ataula original antes de usá-la: ambas registram os mesmos comandos.
 
-No VS Code, abra Extensões → menu **…** → **Instalar do VSIX…** e selecione `ataula-personal-1.0.12.vsix`. Também é possível usar:
+No VS Code, abra Extensões → menu **…** → **Instalar do VSIX…** e selecione `galastri-ataula.vsix`. Também é possível usar:
 
 ```sh
-code --install-extension ataula-personal-1.0.12.vsix
+code --install-extension galastri-ataula.vsix
 ```
 
 O identificador próprio evita receber versões da extensão original. Atualizações desta versão pessoal são feitas instalando um novo VSIX.

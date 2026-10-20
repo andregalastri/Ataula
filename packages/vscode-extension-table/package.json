@@ -107,7 +107,7 @@
     "vscode:prepublish": "npm run compile",
     "compile": "npx esbuild ./src/extension.ts --bundle --platform=node --target=node18 --external:vscode --outfile=./dist/extension.js",
     "watch": "tsc -watch -p ./",
-    "package:vsix": "npx --yes @vscode/vsce package --no-dependencies"
+    "package:vsix": "npx --yes @vscode/vsce package --no-dependencies --out galastri-ataula.vsix"
   },
   "dependencies": {},
   "devDependencies": {

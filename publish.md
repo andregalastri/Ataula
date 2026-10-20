@@ -11,7 +11,7 @@ npm ci
 npm run package:vsix
 ```
 
-Resultado: `packages/vscode-extension-table/ataula-personal-1.0.12.vsix`.
+Resultado: `packages/vscode-extension-table/galastri-ataula.vsix`.
 
 Alternativa: **GitHub → Actions → Package personal VSIX → Run workflow**. Ao terminar, baixe e extraia o artefato `galastri-ataula-vsix`. Forks podem precisar habilitar Actions na primeira vez.
 
@@ -26,7 +26,7 @@ O workflow automático **Validate Galastri Ataula** também gera o mesmo artefat
 Pelo terminal:
 
 ```sh
-code --install-extension ataula-personal-1.0.12.vsix
+code --install-extension galastri-ataula.vsix
 ```
 
 A identificação é `andregalastri.ataula-personal`, com nome visível **Galastri Ataula**. Ela não recebe as atualizações do Ataula original.
