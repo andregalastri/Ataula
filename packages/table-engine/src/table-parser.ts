@@ -107,9 +107,9 @@ export function parseGeometricTable(tableStr: string, isRubric = false, preserve
               }
             }
             if (boundaryPos[closestIdx] === -1 ||
-                  Math.abs(s - vLines[closestIdx]) < Math.abs(boundaryPos[closestIdx] - vLines[closestIdx])) {
-                boundaryPos[closestIdx] = s;
-              }
+                Math.abs(s - vLines[closestIdx]) < Math.abs(boundaryPos[closestIdx] - vLines[closestIdx])) {
+              boundaryPos[closestIdx] = s;
+            }
           }
 
           let lineChanged = false;
@@ -380,9 +380,9 @@ export function parseGeometricTable(tableStr: string, isRubric = false, preserve
                   }
                 }
                 if (boundaryPos[closestIdx] === -1 ||
-                  Math.abs(s - vLines[closestIdx]) < Math.abs(boundaryPos[closestIdx] - vLines[closestIdx])) {
-                boundaryPos[closestIdx] = s;
-              }
+                    Math.abs(s - vLines[closestIdx]) < Math.abs(boundaryPos[closestIdx] - vLines[closestIdx])) {
+                  boundaryPos[closestIdx] = s;
+                }
               }
             }
           } else {

@@ -41,6 +41,7 @@ O ambiente de edição não disponibilizou terminal Node/npm. A validação disp
 - Motor original: 87 de 88 testes passaram; falhou somente o caso 34 acima.
 - Motor com as alterações: os mesmos 87 testes passaram, com a mesma falha anterior.
 - 14 novos testes de bordas passaram, incluindo 25 combinações de tamanho de grade.
+- 200 verificações de ida e volta em tabelas geradas também passaram.
 - 5 testes do adaptador de documento/geometria passaram, inclusive com objetos congelados como os da API do VS Code.
 
 Essa execução não substitui a compilação TypeScript nem os testes dentro do VS Code real. Esses testes foram preparados para o CI e para execução local. A geração do VSIX exige uma dessas execuções.

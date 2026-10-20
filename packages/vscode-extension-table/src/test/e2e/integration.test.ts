@@ -34,7 +34,7 @@ async function format(editor: vscode.TextEditor) {
 
 suite('Galastri Ataula in the VS Code extension host', () => {
   teardown(async () => {
-    await vscode.commands.executeCommand('workbench.action.closeAllEditors');
+    await vscode.commands.executeCommand('workbench.action.revertAndCloseActiveEditor');
     await settle();
   });
 

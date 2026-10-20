@@ -68,7 +68,7 @@ npm run package:vsix
 
 O pacote é criado em `packages/vscode-extension-table/ataula-personal-1.0.12.vsix`. Nenhum comando publica a extensão em um catálogo.
 
-Também há o workflow manual **Package personal VSIX**, em **Actions**. Se o GitHub mantiver Actions desativado no fork, habilite-o antes. O workflow compila, executa testes e disponibiliza o instalador como artefato privado; não cria uma publicação no Marketplace nem no Open VSX.
+Também há o workflow manual **Package personal VSIX**, em **Actions**. Se o GitHub mantiver Actions desativado no fork, habilite-o antes. O workflow compila, executa testes e disponibiliza o instalador como artefato do workflow; não cria uma publicação no Marketplace nem no Open VSX.
 
 Veja [instalação e Intranet](publish.md) e [testes e limitações conhecidas](TESTING.md).
 

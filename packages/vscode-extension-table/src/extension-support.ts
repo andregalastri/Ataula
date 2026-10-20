@@ -3,7 +3,7 @@ import * as vscode from 'vscode';
 export type ExtensionLogger = (msg: string) => void;
 
 export function createLogger(context: vscode.ExtensionContext): ExtensionLogger {
-  const output = vscode.window.createOutputChannel('Ataula');
+  const output = vscode.window.createOutputChannel('Galastri Ataula');
   context.subscriptions.push(output);
 
   return (msg: string) => {

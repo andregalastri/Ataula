@@ -531,7 +531,7 @@ export function activate(context: vscode.ExtensionContext) {
     let renderedTable: string;
     try {
       formattedTable = formatGeometricTable(tableNode);
-        renderedTable = formatBoxDrawingTable(tableNode);
+      renderedTable = formatBoxDrawingTable(tableNode);
     } catch (e: any) {
       logToFile(`Error formatting table in runLiveFormatting: ${e.message}`);
       return;
@@ -1306,7 +1306,7 @@ export function activate(context: vscode.ExtensionContext) {
     let renderedTable: string;
     try {
       formattedTable = formatGeometricTable(tableNode);
-        renderedTable = formatBoxDrawingTable(tableNode);
+      renderedTable = formatBoxDrawingTable(tableNode);
     } catch (e: any) {
       logToFile(`Error formatting table in runLayoutFormatting: ${e.message}`);
       return;
@@ -2552,7 +2552,7 @@ export function activate(context: vscode.ExtensionContext) {
     let renderedTable: string;
     try {
       formattedTable = formatGeometricTable(tableNode);
-        renderedTable = formatBoxDrawingTable(tableNode);
+      renderedTable = formatBoxDrawingTable(tableNode);
     } catch (e) {
       await vscode.commands.executeCommand('type', { text: '\n' });
       return;
