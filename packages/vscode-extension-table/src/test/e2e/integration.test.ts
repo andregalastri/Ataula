@@ -158,6 +158,18 @@ suite('Galastri Ataula in the VS Code extension host', () => {
     assert.equal(commands.some(command => command.startsWith('ataula.cursor')), false);
   });
 
+  test('native text selections replace the selected content when typing', async () => {
+    const editor = await open('┌────┐\n│ AB │\n│ CD │\n└────┘');
+    cursor(editor, 1, 2);
+    await vscode.commands.executeCommand('cursorRightSelect');
+    await vscode.commands.executeCommand('cursorRightSelect');
+    await settle();
+    assert.equal(editor.document.getText(editor.selection), 'AB');
+    await vscode.commands.executeCommand('type', { text: 'X' });
+    await settle();
+    assert.equal(editor.document.getText(), '┌────┐\n│ X  │\n│ CD │\n└────┘');
+  });
+
   test('ordinary Shift selection stays a single native selection', async () => {
     const editor = await open('┌────┐\n│ AB │\n│ CD │\n└────┘');
     cursor(editor, 1, 2);

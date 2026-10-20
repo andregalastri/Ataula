@@ -2245,7 +2245,7 @@ export function activate(context: vscode.ExtensionContext) {
   // Overridden Type Command to intercept character typing inside tables
   const typeCommand = vscode.commands.registerCommand('type', async (args) => {
     const activeEditor = getTableEditor(vscode.window.activeTextEditor);
-    if (!activeEditor || !isSupportedFile(activeEditor.document) || activeEditor.selections.length !== 1) {
+    if (!activeEditor || !isSupportedFile(activeEditor.document) || activeEditor.selections.length !== 1 || !activeEditor.selection.isEmpty) {
       await vscode.commands.executeCommand('default:type', args);
       return;
     }

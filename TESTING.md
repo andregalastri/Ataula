@@ -52,7 +52,7 @@ A validação inicial em V8, antes da habilitação de Actions, também havia co
 ## Cobertura adicional da versão 1.0.13
 
 - 13 testes unitários de prefixos, coordenadas e reconstrução manual de tabelas.
-- 15 novos testes no host real para linguagens PHP/JavaScript/Python, multicursores nativos, seleção com Shift, comentários, citações, digitação, Enter, colagem, conversões e reformatação.
+- 16 novos testes no host real para linguagens PHP/JavaScript/Python, multicursores nativos, seleção com Shift, comentários, citações, digitação, Enter, colagem, conversões e reformatação.
 - A suíte completa contém 122 testes; a única exceção continua sendo o caso 34 original. Os testes unitários totalizam 46 casos.
 - O instalador continua sendo `galastri-ataula.vsix`, com a versão interna 1.0.13.
 
