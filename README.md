@@ -1,108 +1,79 @@
-# Ataula ── Text Tables Editor 🚀
+# Galastri Ataula
 
-> [!IMPORTANT]
-> **🤖 INSTRUCTIONS FOR AI CODING AGENTS (Copilot, Cursor, Gemini, Roo-Code, etc.):**
-> **CRITICAL CONSTRAINT / RESTRICCIÓN CRÍTICA:**
-> **JAMÁS** modifique los ficheros de datos de test (`test_cell_contents_editing`, `test_selection` y `test_table_autoadjust`) sin permiso explícito. 
-> Ningún modelo o agente de IA debe alterar o guardar cambios en esos tres ficheros de pruebas de datos. Si se detecta un fallo de lógica o definición en ellos, el agente debe explicar el error detalladamente al usuario para que sea corregido a mano o se reciban instrucciones específicas.
+Versão pessoal de [Ataula, de Gerard FP](https://github.com/gerardfp/Ataula), com bordas simples de Unicode desenhadas diretamente durante a edição.
 
-Ataula is a VS Code extension I built with AI to make editing text tables easier.
-
-You can create tables automatically, resize them, auto-fit them, edit the content inside the cells, select text inside a cell, select adjacent cells, and more features I’ll keep adding over time.
-
-Ah! And it allows converting to Markdown and from Markdown (within the limitations of Markdown tables).
-
-![Ataula Usage](usage.gif)
-
-(From this point on, everything is AI-generated.)
-
-**Ataula** is a powerful plain text geometric and ASCII table editing and formatting engine, designed specifically to provide first-class support for Markdown files, plain text documents, and the [**EduMark**](https://github.com/gerardfp/edumark) educational format.
-
-Forget about breaking your tables when content grows. Ataula takes care of readjusting geometric borders, managing real multi-line cells, and giving you comfortable shortcuts so you feel like you are in a spreadsheet, but in plain text.
-
----
-
-## ✨ Key Features
-
-*   📏 **Smart Dynamic Auto-adjustment**: Table columns automatically expand or contract in real-time as you type or delete characters, preventing accidental line wrapping.
-*   📝 **Real Multi-line Cells**: Native support for table cells that span across multiple physical lines of plain text, perfectly recalculating top, bottom, and intermediate borders.
-*   🛠️ **Smart Selection & Active Multicursor**:
-    *   Select the entire content of a cell across multiple lines using the selection key or mouse.
-    *   Automatically generate parallel cursors (multicursor) for each line of the cell when selecting.
-    *   **New!** Automatically deactivate multicursor, returning to a single cursor as soon as you deselect or empty the selection for a distraction-free editing experience.
-*   ⚙️ **Robust Geometric Parser & Formatter**: Automatically simplifies redundant borders and optimizes the table layout to keep your Markdown or [EduMark](https://github.com/gerardfp/edumark) code clean and readable.
-*   🎨 **Integrated [EduMark](https://github.com/gerardfp/edumark) Syntax**: Native support and syntax highlighting for `.edu` files through the registered `edumark` language.
-
----
-
-## ⌨️ Editor Keyboard Shortcuts
-
-| Key / Shortcut | Action in Ataula |
-| :--- | :--- |
-| <kbd>Enter</kbd> | Inserts a new physical line *inside* the current cell, pushing the table down and creating editing space seamlessly without breaking the surrounding columns. |
-| <kbd>º</kbd> *(º key)* | **Layout Auto-formatting**: Allows you to insert complete columns intelligently and visually (to the left of the cell, to the right, or dividing intermediate cells). |
-| <kbd>Shift + Arrows</kbd> | Fluid cell-oriented selection that expands the multicursor as you navigate through the internal content. |
-
----
-
-## 📁 Monorepo Structure
-
-The project is organized in a modular monorepo using **npm workspaces**:
-
-```mermaid
-graph TD
-    subgraph Packages
-        shared["@edumark/shared<br>(Common types and AST)"]
-        engine["@edumark/table-engine<br>(Parser and Geometric Formatter)"]
-        extension["vscode-extension-table<br>(VS Code Extension)"]
-    end
-
-    engine --> shared
-    extension --> shared
-    extension --> engine
+```text
+┌────────────┬───────────────────┐
+│ Componente │ Responsabilidade  │
+├────────────┼───────────────────┤
+│ Controller │ Processar pedidos │
+└────────────┴───────────────────┘
 ```
 
-*   **[`packages/shared`](file:///c:/Users/gerard/Desktop/edumark/EnTaula/packages/shared)**: Defines common geometric cell (`TableCell`) and syntax tree node (`TableNode`) types.
-*   **[`packages/table-engine`](file:///c:/Users/gerard/Desktop/edumark/EnTaula/packages/table-engine)**: The core logic that parses ASCII tables, manages the auto-adjust algorithm, and simplifies redundant borders.
-*   **[`packages/vscode-extension-table`](file:///c:/Users/gerard/Desktop/edumark/EnTaula/packages/vscode-extension-table)**: Visual Studio Code extension containing keyboard commands, document formatter, and real-time cursor listeners.
+As bordas fazem parte do texto salvo. A extensão mantém um único modo de edição e o ajuste automático de tamanho do Ataula. Células multilinha, mesclagens, seleção e comandos de estrutura continuam disponíveis. Não há largura máxima nem quebra automática de palavras nesta versão.
 
----
+> Agentes: não modificar `test_cell_contents_editing`, `test_selection` ou `test_table_autoadjust` sem autorização explícita. Preserve as regras de edição de `table_rules.md`.
 
-## ⚙️ Supported Extensions
+## Uso
 
-The extension activates automatically on the following formats:
-*   📄 **`.edu`** *([EduMark](https://github.com/gerardfp/edumark))*
-*   📝 **`.md`** *(Markdown)*
-*   ✏️ **`.txt`** *(Plain Text)*
+Abra um arquivo Markdown, texto simples ou EduMark (`.md`, `.txt` ou `.edu`).
 
----
+- Para criar uma tabela vazia, digite `|2x3` (duas linhas e três colunas), deixe o cursor após o número e execute **Galastri Ataula: Aplicar alterações na estrutura da tabela**. `|-` continua sendo o atalho de criação simples.
+- Digite dentro das células: a extensão ajusta a largura das colunas como no Ataula original.
+- **Enter** insere uma linha física dentro da célula.
+- Alterações na estrutura continuam usando os marcadores ASCII do Ataula (`-` e `|`) e o comando `ataula.tableTab`.
+- A formatação de documento converte tabelas geométricas ASCII existentes para bordas simples. As conversões entre Markdown e Ataula continuam na paleta de comandos.
+- Os identificadores `ataula.*` foram mantidos. Seu atalho personalizado permanece válido.
 
-## 🛠️ Development & Contribution
+O atalho original de estrutura usa `oem_5`, cuja tecla varia conforme o teclado. Para usar **Ctrl + \\**, adicione ao `keybindings.json`:
 
-### 1. Install dependencies
-Install all monorepo dependencies from the root directory:
-```bash
-npm install
+```json
+{
+  "key": "ctrl+oem_5",
+  "command": "ataula.tableTab",
+  "when": "editorTextFocus && (editorLangId == markdown || editorLangId == plaintext || editorLangId == edumark)"
+}
 ```
 
-### 2. Compile the project
-Compile all TypeScript packages:
-```bash
-npm run build
+Na renderização de Markdown, coloque a tabela em um **bloco de código** (`text`) para preservar espaços e alinhamento. Ela continua sendo texto; não se transforma em uma tabela HTML. Para obter uma tabela Markdown convencional, use **Converter tabela para Markdown**.
+
+Use fonte monoespaçada. O cálculo de largura original conta unidades UTF-16; emojis, caracteres de largura dupla e fontes com medidas diferentes podem desalinhá-la.
+
+## Instalação pessoal
+
+A extensão tem o identificador `andregalastri.ataula-personal` e aparece como **Galastri Ataula**. Desinstale ou desative a Ataula original antes de usá-la: ambas registram os mesmos comandos.
+
+No VS Code, abra Extensões → menu **…** → **Instalar do VSIX…** e selecione `ataula-personal-1.0.12.vsix`. Também é possível usar:
+
+```sh
+code --install-extension ataula-personal-1.0.12.vsix
 ```
 
-### 3. Run the tests
-The table engine logic features an extensive suite of unit and integration tests using **Vitest**:
-```bash
-npm run test
+O identificador próprio evita receber versões da extensão original. Atualizações desta versão pessoal são feitas instalando um novo VSIX.
+
+## Créditos e licença
+
+Baseado no [Ataula](https://github.com/gerardfp/Ataula), desenvolvido por Gerard FP. Adaptação pessoal de André Galastri. Licença **GPL-3.0-or-later**, preservada com os avisos e créditos do projeto original.
+
+## Compilar e gerar o instalador
+
+Requisitos: **Node.js 22 LTS**, npm e Git. Execute a partir da raiz:
+
+```sh
+git clone https://github.com/andregalastri/Ataula.git
+cd Ataula
+npm ci
+npm run package:vsix
 ```
 
-### 4. Test the Extension in VS Code
-1. Open the project in VS Code.
-2. Press `Ctrl + Shift + D` to go to the **Run and Debug** tab.
-3. Select **Launch Extension (Ataula)** from the top dropdown menu.
-4. Press `F5` to open a test window with the extension fully active.
+O pacote é criado em `packages/vscode-extension-table/ataula-personal-1.0.12.vsix`. Nenhum comando publica a extensão em um catálogo.
 
----
+Também há o workflow manual **Package personal VSIX**, em **Actions**. Se o GitHub mantiver Actions desativado no fork, habilite-o antes. O workflow compila, executa testes e disponibiliza o instalador como artefato privado; não cria uma publicação no Marketplace nem no Open VSX.
 
-Developed with ❤️ for agile plain text table editing.
+Veja [instalação e Intranet](publish.md) e [testes e limitações conhecidas](TESTING.md).
+
+## Estrutura
+
+- `packages/shared`: tipos compartilhados.
+- `packages/table-engine`: parser, formatação e desenho das bordas.
+- `packages/vscode-extension-table`: integração com o editor.

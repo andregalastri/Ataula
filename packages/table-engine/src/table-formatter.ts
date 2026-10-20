@@ -1,4 +1,5 @@
 import { TableNode, TableCell } from '@edumark/shared';
+import { drawSimpleBorders } from './table-borders.js';
 
 export function simplifyTable(table: TableNode): TableNode {
   let { rowsCount, colsCount, cells } = table;
@@ -63,7 +64,7 @@ export function simplifyTable(table: TableNode): TableNode {
   };
 }
 
-export function formatGeometricTable(table: TableNode, preserveColWidths = false): string {
+export function formatGeometricTable(table: TableNode, preserveColWidths = false, simpleBorders = false): string {
   if (table.rowsCount === 0 || table.colsCount === 0 || table.cells.length === 0) {
     return '';
   }
@@ -200,12 +201,19 @@ export function formatGeometricTable(table: TableNode, preserveColWidths = false
   };
 
   const outputLines: string[] = [];
+  const separators: number[][] = [];
+  const borderRows = new Set<number>();
 
   // 5. Draw the table
   // Top border
   let topBorder = '|';
   for (let i = 0; i < colsCount; i++) {
     topBorder += '-'.repeat(colWidths[i]) + '|';
+  }
+  borderRows.add(outputLines.length);
+  separators.push([]);
+  for (let column = 0; column < topBorder.length; column++) {
+    if (topBorder[column] === '|') separators[0].push(column);
   }
   outputLines.push(topBorder);
 
@@ -215,10 +223,13 @@ export function formatGeometricTable(table: TableNode, preserveColWidths = false
     const height = rowHeights[j];
     for (let k = 0; k < height; k++) {
       let contentLine = '|';
+      const contentSeparators = [0];
       for (let i = 0; i < colsCount; i++) {
         const cell = getCellAt(j, i);
         if (!cell) {
-          contentLine += ' '.repeat(colWidths[i]) + '|';
+          contentLine += ' '.repeat(colWidths[i]);
+          contentSeparators.push(contentLine.length);
+          contentLine += '|';
           continue;
         }
 
@@ -238,9 +249,11 @@ export function formatGeometricTable(table: TableNode, preserveColWidths = false
         if (nextCell && nextCell.id === cell.id) {
           // merged, do nothing (we already printed its space as part of cellWidth)
         } else {
+          contentSeparators.push(contentLine.length);
           contentLine += '|';
         }
       }
+      separators.push(contentSeparators);
       outputLines.push(contentLine);
     }
 
@@ -280,8 +293,22 @@ export function formatGeometricTable(table: TableNode, preserveColWidths = false
         borderLine += '|';
       }
     }
+    borderRows.add(outputLines.length);
+    const borderSeparators: number[] = [];
+    for (let column = 0; column < borderLine.length; column++) {
+      if (borderLine[column] === '|') borderSeparators.push(column);
+    }
+    separators.push(borderSeparators);
     outputLines.push(borderLine);
   }
 
+  if (simpleBorders) {
+    return drawSimpleBorders(outputLines, separators, borderRows);
+  }
   return outputLines.join('\n');
+}
+
+/** Format the persisted table using the single-line Unicode border style. */
+export function formatBoxDrawingTable(table: TableNode, preserveColWidths = false): string {
+  return formatGeometricTable(table, preserveColWidths, true);
 }

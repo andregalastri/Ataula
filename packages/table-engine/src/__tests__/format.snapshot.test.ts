@@ -1,10 +1,9 @@
-// Snapshot test for table formatting
-import { parseGeometricTable } from '../../src/table-parser';
-import { formatTable } from '../../src/format-table'; // adjust import if helper resides elsewhere
+import { test, expect } from 'vitest';
+import { parseGeometricTable } from '../table-parser.js';
+import { formatGeometricTable } from '../table-formatter.js';
 
 test('format snapshot for complex table', () => {
-  const raw = `|---|---|\n| abc | defghi |\n|---|---|`;
-  const parsed = parseGeometricTable(raw, { autoCorrectPipes: true });
-  const formatted = formatTable(parsed);
-  expect(formatted).toMatchSnapshot();
+  const raw = '|---|---|\n| abc | defghi |\n|---|---|';
+  const parsed = parseGeometricTable(raw, false, false, true);
+  expect(formatGeometricTable(parsed)).toMatchSnapshot();
 });
