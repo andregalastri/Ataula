@@ -1,5 +1,5 @@
 import * as vscode from 'vscode';
-import { parseGeometricTable, formatGeometricTable, formatBoxDrawingTable, simplifyTable } from '@edumark/table-engine';
+import { parseGeometricTable, formatGeometricTable, formatBoxDrawingTable, simplifyTable, normalizeTableBorders } from '@edumark/table-engine';
 import { TableCell, TableNode } from '@edumark/shared';
 import { createLogger, isSupportedFile } from './extension-support';
 import { getTableDocument, getTableEditor, getPhysicalTableText, getTableChangeEvent, replaceTable, createTableEdit, toEditorPosition, getRawDocument, getPreviousTableLines } from './table-document';
@@ -115,6 +115,15 @@ export function activate(context: vscode.ExtensionContext) {
   }
 
   async function applyNestedLayout(editor: vscode.TextEditor, block: TableBlock, focus: TableFocus) {
+    const line = normalizeTableBorders(focus.text).split('\n')[focus.cursor.line] || '';
+    const before = line.slice(0, focus.cursor.character);
+    const after = line.slice(focus.cursor.character);
+    const layoutIntent = /\| *[-=_]+$/.test(before) || /\| *$/.test(before) && /^[-=_]+/.test(after) ||
+      /[-=_]+$/.test(before) && /^ *\|/.test(after) || /^[-=_]+ *\|/.test(after) || /\|\s*\d+\s*x\s*\d+/.test(line);
+    if (!layoutIntent) {
+      await vscode.commands.executeCommand('type', { text: 'º' });
+      return;
+    }
     // Run the existing layout engine against an isolated in-memory document.
     // No temporary editor is opened and no unrelated document is modified.
     let text = focus.text;
@@ -235,6 +244,11 @@ export function activate(context: vscode.ExtensionContext) {
 
   async function runLiveFormatting(currentEditor: vscode.TextEditor, document: vscode.TextDocument) {
     if (isFormatting || currentEditor.selections.length !== 1) return;
+
+    // A timer queued before creating/pasting a child must not re-enter the
+    // legacy single-grid editor with the newly nested document.
+    const nested = nestedBlock(currentEditor);
+    if (nested && hasNestedTables(nested.text)) { activeTable = undefined; return; }
 
     // In-memory render formatting
     if (activeTable && activeTable.documentUri.fsPath === document.uri.fsPath && activeTable.targetCursor) {
