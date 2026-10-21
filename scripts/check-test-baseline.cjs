@@ -16,7 +16,7 @@ const allowed = failures.length === 1 &&
     file.assertionResults.every(test => test.status === 'passed' || test.status === 'failed')) &&
   !report.wasInterrupted &&
   (!report.unhandledErrors || report.unhandledErrors.length === 0) &&
-  report.numTotalTests >= 135 &&
+  report.numTotalTests >= 150 &&
   report.numPassedTests === report.numTotalTests - 1 &&
   !report.numPendingTests;
 if (!allowed) {

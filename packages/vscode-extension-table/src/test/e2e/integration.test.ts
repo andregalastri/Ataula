@@ -420,4 +420,139 @@ suite('Galastri Ataula in the VS Code extension host', () => {
     assert.equal(editor.document.getText(), nestedBox('┌─────┬───┐\n│ AZY │ B │\n└─────┴───┘'));
   });
 
+  test('extends an indented table to column 80 without touching its content', async () => {
+    const editor = await open(innerBox.split('\n').map(line => '   ' + line).join('\n'));
+    cursorAt(editor, 'A', 1);
+    await settle();
+    const before = editor.selection.active;
+    await vscode.commands.executeCommand('ataula.extendTable');
+    await settle();
+    const lines = editor.document.getText().split('\n');
+    assert.ok(lines.every(line => line.length === 80));
+    assert.equal(lines[0].indexOf('┬'), 7);
+    assert.equal(lines[1].indexOf('A'), 5);
+    assert.equal(lines[1].indexOf('B'), 9);
+    assert.equal(editor.selection.active.character, before.character);
+    assert.equal(editor.selection.active.line, before.line);
+    const configuration = vscode.workspace.getConfiguration('galastriAtaula', editor.document.uri);
+    await configuration.update('finishColumn', 96, vscode.ConfigurationTarget.Global);
+    try {
+      await vscode.commands.executeCommand('ataula.extendTable');
+      await settle();
+      assert.ok(editor.document.getText().split('\n').every(line => line.length === 96));
+    } finally {
+      await configuration.update('finishColumn', undefined, vscode.ConfigurationTarget.Global);
+    }
+  });
+
+  test('counts comment prefixes in the presentation column', async () => {
+    const editor = await open(['/*', ...innerBox.split('\n').map(line => ' * ' + line), ' */'].join('\n'), 'php');
+    cursorAt(editor, 'A', 1);
+    await settle();
+    await vscode.commands.executeCommand('ataula.extendTable');
+    await settle();
+    assert.ok(editor.document.getText().split('\n').slice(1,-1).every(line => line.startsWith(' * ') && line.length === 80));
+    assert.equal(editor.document.lineAt(0).text, '/*');
+    assert.equal(editor.document.lineAt(4).text, ' */');
+  });
+
+  test('returns to normal widths on the first typing after finalization', async () => {
+    const editor = await open(innerBox);
+    cursorAt(editor, 'A', 1);
+    await settle();
+    await vscode.commands.executeCommand('ataula.extendTable');
+    await settle();
+    await vscode.commands.executeCommand('type', {text:'X'});
+    await settle();
+    assert.equal(editor.document.getText(), '┌────┬───┐\n│ AX │ B │\n└────┴───┘');
+    await vscode.commands.executeCommand('type', {text:'Y'});
+    await settle();
+    assert.equal(editor.document.getText(), '┌─────┬───┐\n│ AXY │ B │\n└─────┴───┘');
+  });
+
+  test('resets presentation width after native multiline paste', async () => {
+    const editor = await open(innerBox);
+    cursorAt(editor, 'A', 1);
+    await settle();
+    await vscode.commands.executeCommand('ataula.extendTable');
+    await settle();
+    await editor.edit(builder => builder.insert(editor.selection.active, 'X\nY'));
+    await settle();
+    assert.equal(editor.document.getText(), '┌────┬───┐\n│ AX │ B │\n│ Y  │   │\n└────┴───┘');
+  });
+
+  test('resets presentation width after native Backspace', async () => {
+    const editor = await open(innerBox);
+    cursorAt(editor, 'A', 1);
+    await settle();
+    await vscode.commands.executeCommand('ataula.extendTable');
+    await settle();
+    await vscode.commands.executeCommand('deleteLeft');
+    await settle();
+    assert.equal(editor.document.getText(), '┌───┬───┐\n│   │ B │\n└───┴───┘');
+  });
+
+  test('resets presentation width after Enter while preserving the new content line', async () => {
+    const editor = await open(innerBox);
+    cursorAt(editor, 'A', 1);
+    await settle();
+    await vscode.commands.executeCommand('ataula.extendTable');
+    await settle();
+    await vscode.commands.executeCommand('ataula.tableEnter');
+    await settle();
+    assert.equal(editor.document.getText(), '┌───┬───┐\n│ A │ B │\n│   │   │\n└───┴───┘');
+  });
+
+  test('extends a child to its parent cell without growing the outer box', async () => {
+    const source = nestedBox();
+    const editor = await open(source);
+    cursorAt(editor, 'Before', 3);
+    await settle();
+    await vscode.commands.executeCommand('ataula.extendTable');
+    await settle();
+    cursorAt(editor, '│ A │', 3);
+    await settle();
+    await vscode.commands.executeCommand('ataula.extendTable');
+    await settle();
+    const lines = editor.document.getText().split('\n');
+    assert.ok(lines.every(line => line.length === 80));
+    assert.ok(lines[3].endsWith('┐ │'));
+    assert.ok(lines[4].endsWith('│ │'));
+    await vscode.commands.executeCommand('type', {text:'X'});
+    await settle();
+    assert.equal(editor.document.getText(), nestedBox('┌────┬───┐\n│ AX │ B │\n└────┴───┘'));
+  });
+
+  test('keeps a finalized child usable after editing the surrounding prose', async () => {
+    const source = box(['Heading with spare room', ...innerBox.split('\n')]);
+    const editor = await open(source);
+    cursorAt(editor, '│ A │', 3);
+    await settle();
+    await vscode.commands.executeCommand('ataula.extendTable');
+    await settle();
+    cursorAt(editor, 'Heading', 7);
+    await settle();
+    await vscode.commands.executeCommand('type', {text:'!'});
+    await settle();
+    cursorAt(editor, '│ A │', 3);
+    await settle();
+    await vscode.commands.executeCommand('type', {text:'X'});
+    await settle();
+    assert.equal(editor.document.getText(), box(['Heading! with spare room', ...'┌────┬───┐\n│ AX │ B │\n└────┴───┘'.split('\n')]));
+  });
+
+  test('ignores finalization outside tables and does not shrink a table beyond the target', async () => {
+    const editor = await open('ordinary text');
+    cursor(editor, 0, 3);
+    await vscode.commands.executeCommand('ataula.extendTable');
+    assert.equal(editor.document.getText(), 'ordinary text');
+    const wide = box(['A'.repeat(85)]);
+    await editor.edit(builder => builder.replace(new vscode.Range(0,0,0,editor.document.lineAt(0).text.length), wide));
+    cursorAt(editor, 'AAAA', 3);
+    await settle();
+    await vscode.commands.executeCommand('ataula.extendTable');
+    await settle();
+    assert.equal(editor.document.getText(), wide);
+  });
+
 });
