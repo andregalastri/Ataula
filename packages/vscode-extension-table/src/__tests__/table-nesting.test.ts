@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { formatBoxDrawingTable, normalizeTableBorders, parseGeometricTable } from '@edumark/table-engine';
 import type { TableNode } from '@edumark/shared';
-import { editNestedTable, focusTable, formatNestedTable, hasNestedTables, nestedTableSeed } from '../table-nesting';
+import { editNestedTable, focusTable, formatNestedTable, hasNestedTables, nestedTableSeed, nestedCellRanges } from '../table-nesting';
 
 function table(contents: string[][]): string {
   const node: TableNode = { type: 'table', rowsCount: 1, colsCount: contents.length,
@@ -107,4 +107,26 @@ describe('Independent boxes inside table cells', () => {
     expect(parsed.colsCount).toBe(2);
     expect(parsed.cells[0].colspan).toBe(2);
   });
+  it('joins selected lines and removes padding from sibling cells at every level', () => {
+    const multiline = table([['AX', 'Y'], ['B']]);
+    const text = table([['Before', ...multiline.split('\n'), 'After'], ['Side']]);
+    const result = editNestedTable(text, point(text, 'AX', 1), point(text, '│ Y', 2), '')!;
+    expect(result.text).toBe(table([['Before', ...table([['AY'], ['B']]).split('\n'), 'After'], ['Side']]));
+    expect(result.cursor).toEqual(point(result.text, 'AY', 1));
+  });
+
+  it('maps cell selections to the inner content rather than the parent', () => {
+    const ranges = nestedCellRanges(outer, point(outer, '│ A │', 3));
+    expect(ranges).toHaveLength(1);
+    const {start,end} = ranges[0];
+    expect(outer.split('\n')[start.line].slice(start.character,end.character)).toBe('A');
+  });
+
+  it('retains ASCII layout markers adjacent to the child border', () => {
+    const marked = table([['Before', ...child.replace('┐', '┐-').split('\n'), 'After']]);
+    const focus = focusTable(marked, point(marked, '┐-', 2));
+    expect(focus.text.split('\n')[0]).toBe('┌───┬───┐-');
+    expect(focus.replace(child, {line:1,character:2}).text).toBe(table([['Before', ...child.split('\n'), 'After']]));
+  });
+
 });

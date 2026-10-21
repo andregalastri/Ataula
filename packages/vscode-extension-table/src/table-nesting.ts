@@ -57,6 +57,18 @@ function pointAt(table: Surface, cell: TableCell, line: number, character: numbe
   return { line: row, character: table.vertical[cell.column] + 2 + character };
 }
 
+function removeSiblingPadding(node: TableNode, cell: TableCell, removedLines: number) {
+  if (removedLines <= 0) return;
+  for (const other of node.cells) {
+    if (other.id === cell.id || other.row !== cell.row || other.rowspan !== cell.rowspan) continue;
+    let remaining = removedLines;
+    while (remaining > 0 && other.content.length > 0 && !other.content[other.content.length - 1].trim()) {
+      other.content.pop();
+      remaining--;
+    }
+  }
+}
+
 function directBoxes(text: string): BoxRegion[] {
   const regions = findBoxRegions(text);
   return regions.filter(inner => !regions.some(outer => containsBox(outer, inner)));
@@ -127,12 +139,13 @@ export interface TableFocus {
   text: string;
   cursor: Point;
   toLocal: (point: Point) => Point | undefined;
+  toGlobal: (point: Point) => Point;
   replace: (text: string, cursor: Point, preserveWidths?: boolean) => TableResult;
 }
 
 /** Locate the innermost table, retaining a path back through its parent cells. */
 export function focusTable(text: string, cursor: Point): TableFocus {
-  const identity: TableFocus = { text, cursor, toLocal: point => point,
+  const identity: TableFocus = { text, cursor, toLocal: point => point, toGlobal: point => point,
     replace: (text, cursor) => ({ text, cursor }) };
   const parsed = surface(text);
   const target = parsed && cellAt(parsed, cursor);
@@ -157,9 +170,15 @@ export function focusTable(text: string, cursor: Point): TableFocus {
       if (!location || location.cell.id !== target.cell.id || !inBox(box, location)) return undefined;
       return child.toLocal({ line: location.line - box.top, character: location.character - box.left });
     },
+    toGlobal(point) {
+      const result = child.toGlobal(point);
+      return pointAt(parsed, target.cell, box.top + result.line, box.left + result.character);
+    },
     replace(text, cursor, preserveWidths = false) {
       const result = child.replace(text, cursor, preserveWidths);
+      const oldHeight = target.cell.content.length;
       target.cell.content = replaceBox(target.cell.content, box, result.text);
+      removeSiblingPadding(parsed.node, target.cell, oldHeight - target.cell.content.length);
       const formatted = formatBoxDrawingTable(parsed.node, preserveWidths);
       const next = surface(formatted)!;
       const cell = next.node.cells.find(cell => cell.id === target.cell.id)!;
@@ -175,7 +194,7 @@ export function editNestedTable(text: string, start: Point, end: Point, inserted
   let localEnd = focus.toLocal(end);
   if (!localEnd) {
     // A selection crossing a child boundary belongs to the containing cell.
-    focus = { text, cursor: start, toLocal: point => point, replace: (text, cursor) => ({ text, cursor }) };
+    focus = { text, cursor: start, toLocal: point => point, toGlobal: point => point, replace: (text, cursor) => ({ text, cursor }) };
     localEnd = end;
   }
   const parsed = surface(focus.text);
@@ -189,6 +208,7 @@ export function editNestedTable(text: string, start: Point, end: Point, inserted
   const added = inserted.split(/\r?\n/);
   const replacement = (before + added.join('\n') + after).split('\n');
   content.splice(from.line, to.line - from.line + 1, ...replacement);
+  removeSiblingPadding(parsed.node, from.cell, to.line - from.line + 1 - replacement.length);
   const line = from.line + added.length - 1;
   const character = added.length === 1 ? before.length + added[0].length : added[added.length - 1].length;
   const preserve = inserted.length > 0 && !inserted.includes('\n');
@@ -211,6 +231,7 @@ export function nestedTableSeed(text: string, cursor: Point): TableFocus | undef
   return {
     text: match[2], cursor: { line: 0, character: Math.max(0, target.character - indent) },
     toLocal: () => undefined,
+    toGlobal: point => parent.toGlobal(pointAt(parsed, target.cell, target.line + point.line, indent + point.character)),
     replace(text, cursor) {
       target.cell.content.splice(target.line, 1, ...text.split(/\r?\n/).map(line => match[1] + line));
       const formatted = formatBoxDrawingTable(parsed.node);
@@ -219,4 +240,18 @@ export function nestedTableSeed(text: string, cursor: Point): TableFocus | undef
       return parent.replace(formatted, pointAt(next, cell, target.line + cursor.line, indent + cursor.character));
     }
   };
+}
+
+/** Select only the innermost cell's text, using original document coordinates. */
+export function nestedCellRanges(text: string, cursor: Point): {start: Point; end: Point}[] {
+  const focus = focusTable(text, cursor);
+  const parsed = surface(focus.text);
+  const target = parsed && cellAt(parsed, focus.cursor);
+  if (!parsed || !target) return [];
+  return target.cell.content.map((line, index) => {
+    const leading = line.length - line.trimStart().length;
+    const start = pointAt(parsed, target.cell, index, leading);
+    const end = pointAt(parsed, target.cell, index, Math.max(leading, line.trimEnd().length));
+    return {start: focus.toGlobal(start), end: focus.toGlobal(end)};
+  });
 }

@@ -4,7 +4,7 @@ import { TableCell, TableNode } from '@edumark/shared';
 import { createLogger, isSupportedFile } from './extension-support';
 import { getTableDocument, getTableEditor, getPhysicalTableText, getTableChangeEvent, replaceTable, createTableEdit, toEditorPosition, getRawDocument, getPreviousTableLines } from './table-document';
 import { reformatTable } from './table-reformat';
-import { editNestedTable, focusTable, formatNestedTable, hasNestedTables, nestedTableSeed, tableBlockAt } from './table-nesting';
+import { editNestedTable, focusTable, formatNestedTable, hasNestedTables, nestedTableSeed, tableBlockAt, nestedCellRanges } from './table-nesting';
 import type { TableBlock, TableFocus, TableResult } from './table-nesting';
 import {
   getCellAtPosition,
@@ -2128,7 +2128,7 @@ export function activate(context: vscode.ExtensionContext) {
   function updateTableContext(rawEditor: vscode.TextEditor | undefined) {
     const editor = getTableEditor(rawEditor);
     let canEditTable = false;
-    if (editor && editor.selections.length === 1) {
+    if (editor && editor.selections.length === 1 && editor.selection.active.line < editor.document.lineCount) {
       canEditTable = /^\s*[-=_]?\|/.test(editor.document.lineAt(editor.selection.active.line).text);
     }
     vscode.commands.executeCommand('setContext', 'ataula.canEditTable', canEditTable);
@@ -3053,6 +3053,15 @@ export function activate(context: vscode.ExtensionContext) {
   const selectCellContentCommand = vscode.commands.registerCommand('ataula.selectCellContent', () => {
     const activeEditor = getTableEditor(vscode.window.activeTextEditor);
     if (!activeEditor) return;
+
+    const nested = nestedBlock(activeEditor);
+    if (nested && hasNestedTables(nested.text)) {
+      const ranges = nestedCellRanges(nested.text, nested.cursor);
+      if (ranges.length) activeEditor.selections = ranges.map(range => new vscode.Selection(
+        new vscode.Position(nested.start + range.start.line, range.start.character),
+        new vscode.Position(nested.start + range.end.line, range.end.character)));
+      return;
+    }
 
     const document = activeEditor.document;
     const position = activeEditor.selection.active;

@@ -285,7 +285,8 @@ suite('Galastri Ataula in the VS Code extension host', () => {
   });
 
   test('formats a nested box without projecting its columns through the prose', async () => {
-    const editor = await open(nestedBox());
+    const wide = nestedBox().split('\n').map(line => line.slice(0, -1) + (line.startsWith('│') ? '    │' : '────' + line.slice(-1))).join('\n');
+    const editor = await open(wide);
     await format(editor);
     assert.equal(editor.document.getText(), nestedBox());
   });
@@ -387,6 +388,36 @@ suite('Galastri Ataula in the VS Code extension host', () => {
     assert.equal(editor.selections.length, 2);
     assert.ok(editor.document.getText().includes('XA'));
     assert.ok(editor.document.getText().includes('XB'));
+  });
+
+  test('selects the innermost cell content', async () => {
+    const editor = await open(nestedBox());
+    cursorAt(editor, '│ A │', 3);
+    await settle();
+    await vscode.commands.executeCommand('ataula.selectCellContent');
+    await settle();
+    assert.equal(editor.selections.map(selection => editor.document.getText(selection)).join('\n'), 'A');
+  });
+
+  test('uses the existing layout marker to add a column only to the child', async () => {
+    const editor = await open(nestedBox(innerBox.replace('┐', '┐-')));
+    cursorAt(editor, '┐-', 2);
+    await settle();
+    await vscode.commands.executeCommand('ataula.tableTab');
+    await settle();
+    assert.equal(editor.document.getText(), nestedBox('┌───┬───┬───┐\n│ A │ B │   │\n└───┴───┴───┘'));
+  });
+
+  test('replaces multiple lines inside a child without deleting its separators', async () => {
+    const editor = await open(nestedBox('┌────┬───┐\n│ AX │ B │\n│ Y  │   │\n└────┴───┘'));
+    cursorAt(editor, 'AX', 1);
+    const start = editor.selection.active;
+    cursorAt(editor, '│ Y', 2);
+    editor.selection = new vscode.Selection(start, editor.selection.active);
+    await settle();
+    await vscode.commands.executeCommand('type', {text:'Z'});
+    await settle();
+    assert.equal(editor.document.getText(), nestedBox('┌─────┬───┐\n│ AZY │ B │\n└─────┴───┘'));
   });
 
 });
