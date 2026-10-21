@@ -48,6 +48,14 @@ function cellAt(table: Surface, point: Point): CellPoint | undefined {
   return { cell, line, character: Math.max(0, point.character - edges[cell.column] - 2) };
 }
 
+/** Right separator of the cell containing a child, relative to this table. */
+export function containingCellRight(text: string, point: Point): number | undefined {
+  const parsed = surface(text);
+  const target = parsed && cellAt(parsed, point);
+  if (!parsed || !target) return undefined;
+  return boundaries(parsed.lines[point.line], parsed.vertical)[target.cell.column + target.cell.colspan];
+}
+
 function pointAt(table: Surface, cell: TableCell, line: number, character: number): Point {
   let row = table.horizontal[cell.row] + 1;
   while (line > 0 && row < table.lines.length - 1) {
@@ -189,7 +197,7 @@ export function focusTable(text: string, cursor: Point): TableFocus {
 
 /** Replace cell content before drawing borders, so native paste/delete cannot
  * consume the containing table's separators when a child grows or shrinks. */
-export function editNestedTable(text: string, start: Point, end: Point, inserted: string): TableResult | undefined {
+export function editNestedTable(text: string, start: Point, end: Point, inserted: string, preserveWidths?: boolean): TableResult | undefined {
   let focus = focusTable(text, start);
   let localEnd = focus.toLocal(end);
   if (!localEnd) {
@@ -211,7 +219,7 @@ export function editNestedTable(text: string, start: Point, end: Point, inserted
   removeSiblingPadding(parsed.node, from.cell, to.line - from.line + 1 - replacement.length);
   const line = from.line + added.length - 1;
   const character = added.length === 1 ? before.length + added[0].length : added[added.length - 1].length;
-  const preserve = inserted.length > 0 && !inserted.includes('\n');
+  const preserve = preserveWidths ?? (inserted.length > 0 && !inserted.includes('\n'));
   const formatted = formatBoxDrawingTable(parsed.node, preserve);
   const next = surface(formatted)!;
   const nextCell = next.node.cells.find(cell => cell.id === from.cell.id)!;

@@ -1,5 +1,13 @@
 # Alterações
 
+## 1.0.15
+
+- Comando Estender tabela para apresentação, com posição final configurável (80 por padrão).
+- Expansão apenas da última coluna, contando indentação e prefixos de comentário/citação.
+- Tabelas internas ocupam o espaço disponível na célula do pai imediato, sem aumentar o pai.
+- Conteúdo, quebras, divisórias anteriores e mesclagens são preservados durante a expansão.
+- A próxima edição da tabela finalizada retoma o ajuste normal das larguras.
+
 ## 1.0.14
 
 - Blocos e tabelas aninhados com as mesmas bordas simples Unicode.

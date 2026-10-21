@@ -53,6 +53,22 @@ Para criar uma tabela interna, deixe uma linha da célula contendo apenas `|2x2`
 
 **Refazer formatação** atua na tabela mais interna sob o cursor e ajusta os blocos que a contêm. Com o cursor no texto externo, reformata o bloco externo e suas tabelas internas. Digitação, Enter, colagem e exclusão preservam os níveis de aninhamento; os prefixos de comentários e citações continuam disponíveis.
 
+## Finalização visual
+
+Com o cursor na tabela, execute **Galastri Ataula: Estender tabela para apresentação** na paleta de comandos. O identificador é `ataula.extendTable`; ele não possui atalho padrão, mas pode receber um em **Atalhos de teclado**.
+
+A tabela externa cresce somente na última coluna até a posição configurada, contando todos os caracteres desde o início da linha, inclusive indentação e prefixos de comentário/citação. Para alterar o padrão de 80, procure **Galastri Ataula: Finish Column** nas configurações ou adicione ao `settings.json`:
+
+```json
+"galastriAtaula.finishColumn": 80
+```
+
+Se a tabela já atingir ou ultrapassar essa posição, nada é alterado. O comando apenas acrescenta traços e preenchimento: mantém o conteúdo, suas quebras manuais e as divisórias anteriores.
+
+Dentro de uma tabela interna, o comando ocupa o espaço livre até a borda direita da célula do pai imediato, mantendo um espaço entre as bordas e preservando o tamanho do pai. Conteúdo que apareça ao lado da tabela também é preservado. Em pais com várias colunas ou células mescladas, vale o limite da célula que contém a tabela.
+
+A expansão serve para finalizar a apresentação. Não configura uma largura permanente: ao continuar digitando, colando, excluindo ou usando Enter na tabela finalizada, o ajuste normal das larguras é retomado. Esse retorno também é reconhecido ao reabrir um arquivo salvo. **Refazer formatação** também recalcula as larguras normalmente.
+
 ## Instalação pessoal
 
 A extensão tem o identificador `andregalastri.ataula-personal` e aparece como **Galastri Ataula**. Desinstale ou desative a Ataula original antes de usá-la: ambas registram os mesmos comandos.

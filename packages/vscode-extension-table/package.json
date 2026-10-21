@@ -2,7 +2,7 @@
   "name": "ataula-personal",
   "displayName": "Galastri Ataula",
   "description": "Edição de tabelas de texto com bordas simples, células multilinha e ajuste automático. Versão pessoal de Ataula.",
-  "version": "1.0.14",
+  "version": "1.0.15",
   "publisher": "andregalastri",
   "icon": "icon.png",
   "repository": {
@@ -71,6 +71,11 @@
         "command": "ataula.reformatTable",
         "title": "Refazer formatação",
         "category": "Galastri Ataula"
+      },
+      {
+        "command": "ataula.extendTable",
+        "title": "Estender tabela para apresentação",
+        "category": "Galastri Ataula"
       }
     ],
     "keybindings": [
@@ -90,7 +95,18 @@
         "mac": "cmd+alt+shift+f",
         "when": "editorTextFocus && ataula.canEditTable && !editorHasMultipleSelections"
       }
-    ]
+    ],
+    "configuration": {
+      "title": "Galastri Ataula",
+      "properties": {
+        "galastriAtaula.finishColumn": {
+          "type": "integer",
+          "default": 80,
+          "minimum": 1,
+          "markdownDescription": "Posição final da borda direita da tabela externa ao executar **Estender tabela para apresentação**. Inclui indentação e prefixos de comentário/citação. Tabelas internas ocupam o espaço disponível na célula do pai. A expansão é pontual e não altera o conteúdo nem quebra linhas."
+        }
+      }
+    }
   },
   "scripts": {
     "vscode:prepublish": "npm run compile",

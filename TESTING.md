@@ -63,6 +63,14 @@ A validação inicial em V8, antes da habilitação de Actions, também havia co
 - A suíte completa contém 135 testes; a única exceção continua sendo o caso 34 original. Os testes unitários totalizam 59 casos.
 - O instalador mantém o nome `galastri-ataula.vsix`, com versão interna 1.0.14.
 
+## Cobertura adicional da versão 1.0.15
+
+- 15 testes unitários de expansão, preservação de conteúdo e topologia, prefixos, mesclagens, limite da célula do pai, três níveis, CRLF e retorno ao ajuste normal.
+- 4 testes de restauração da finalização ao reabrir arquivos, isolamento entre arquivos e liberação após a edição, sem persistir o conteúdo das células.
+- 9 testes adicionais no host real do VS Code: configuração, indentação/comentários, digitação, colagem, Backspace, Enter, aninhamento e comandos sem efeito fora da tabela ou além do limite.
+- A suíte completa contém 154 testes; a única exceção continua sendo o caso 34 original. Os testes unitários totalizam 78 casos, e o host real contém 46 testes.
+- O instalador mantém o nome `galastri-ataula.vsix`, com versão interna 1.0.15.
+
 ## Regras de edição
 
 A edição de conteúdo deve preservar linhas, colunas e mesclagens. Alterações estruturais continuam dependendo do comando `ataula.tableTab`. Os arquivos `table_rules.md`, `.codexrules` e `AGENT_DOCS.md` continuam sendo as referências das regras originais.
