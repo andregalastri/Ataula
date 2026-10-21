@@ -58,9 +58,9 @@ export function extendTable(text: string, cursor: Point, finishColumn: number, p
 }
 
 /** Find finalized tables on the edit's containing path, including ancestors. */
-export function presentationTablesAt(text: string, cursor: Point, marked: ReadonlySet<string>): string[] {
+export function presentationTablesAt(text: string, cursor: Point, marked: ReadonlySet<string>, identify: (text: string) => string = text => text): string[] {
   if (!marked.size) return [];
   const lines = text.split(/\r?\n/);
   return findBoxRegions(text).filter(region => includes(region, cursor))
-    .map(region => regionText(lines, region)).filter(table => marked.has(table));
+    .map(region => regionText(lines, region)).filter(table => marked.has(identify(table)));
 }

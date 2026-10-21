@@ -69,7 +69,7 @@ Se a tabela já atingir ou ultrapassar essa posição, nada é alterado. O coman
 
 Dentro de uma tabela interna, o comando ocupa o espaço livre até a borda direita da célula do pai imediato, mantendo um espaço entre as bordas e preservando o tamanho do pai. Conteúdo que apareça ao lado da tabela também é preservado. Em pais com várias colunas ou células mescladas, vale o limite da célula que contém a tabela.
 
-A expansão serve para finalizar a apresentação. Não configura uma largura permanente: ao continuar digitando, colando, excluindo ou usando Enter na tabela finalizada, o ajuste normal das larguras é retomado. **Refazer formatação** também recalcula as larguras normalmente.
+A expansão serve para finalizar a apresentação. Não configura uma largura permanente: ao continuar digitando, colando, excluindo ou usando Enter na tabela finalizada, o ajuste normal das larguras é retomado. Esse retorno também é reconhecido ao reabrir um arquivo salvo. **Refazer formatação** também recalcula as larguras normalmente.
 
 ## Instalação pessoal
 
