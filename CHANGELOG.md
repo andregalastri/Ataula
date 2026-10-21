@@ -1,5 +1,13 @@
 # Alterações
 
+## 1.0.14
+
+- Blocos e tabelas aninhados com as mesmas bordas simples Unicode.
+- Edição do bloco mais interno sob o cursor, com redimensionamento dos blocos externos.
+- Criação de tabelas dentro de células usando `|RxC` ou `|-` e o comando de estrutura existente.
+- Reformatação recursiva, sem transformar as divisórias internas em colunas externas.
+- Regressões para digitação, Enter, colagem, Backspace, seleção, comentários e múltiplos níveis.
+
 ## 1.0.13
 
 - Funcionamento em qualquer linguagem ou extensão de arquivo.

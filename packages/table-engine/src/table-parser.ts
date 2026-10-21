@@ -1,5 +1,6 @@
 import { TableNode, TableCell } from '@edumark/shared';
 import { normalizeTableBorders } from './table-borders.js';
+import { protectNestedBoxes } from './nested-regions.js';
 
 // Disjoint Set Union (DSU) to group grid units
 class DSU {
@@ -26,7 +27,8 @@ class DSU {
 
 export function parseGeometricTable(tableStr: string, isRubric = false, preserveEmptyLines = false, autoCorrectPipes = false): TableNode {
   // 1. Normalize lines and pad them to equal length
-  tableStr = normalizeTableBorders(tableStr);
+  const protectedBoxes = protectNestedBoxes(tableStr);
+  tableStr = normalizeTableBorders(protectedBoxes.text);
   const rawLines = tableStr.split(/\r?\n/).map(line => line.trimEnd());
   const lines = rawLines.filter(line => line.length > 0);
   if (lines.length === 0) {
@@ -467,7 +469,7 @@ export function parseGeometricTable(tableStr: string, isRubric = false, preserve
       column: minI,
       rowspan,
       colspan,
-      content: finalContent
+      content: finalContent.map(protectedBoxes.restore)
     });
   }
 

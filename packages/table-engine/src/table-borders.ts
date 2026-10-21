@@ -1,3 +1,5 @@
+import { protectNestedBoxes } from './nested-regions.js';
+
 const tableLineStart = /^\s*[-=_]?[|┌├└│]/;
 const boxBorderLine = /^[\s|+\-=_─│┌┬┐├┼┤└┴┘]+$/;
 const boxJunctions = /[┌┬┐├┼┤└┴┘]/g;
@@ -28,6 +30,8 @@ function boundaryColumns(line: string | undefined, side: 'up' | 'down'): number[
 }
 
 export function normalizeTableBorders(text: string): string {
+  const protectedBoxes = protectNestedBoxes(text);
+  text = protectedBoxes.text;
   const parts = text.split(/(\r\n|\r|\n)/);
   const originals = parts.slice();
   let start = 0;
@@ -98,7 +102,7 @@ export function normalizeTableBorders(text: string): string {
     }
     start = end;
   }
-  return parts.join('');
+  return protectedBoxes.restore(parts.join(''));
 }
 
 /**

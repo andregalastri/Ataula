@@ -21,6 +21,11 @@ export function getRawDocument(document: vscode.TextDocument): vscode.TextDocume
   return rawDocuments.get(document) || document;
 }
 
+/** Read the cached source before refreshing it for a native change event. */
+export function getPreviousTableLines(document: vscode.TextDocument): string[] | undefined {
+  return snapshots.get(getRawDocument(document))?.physical.map(line => splitTablePrefix(line).text);
+}
+
 function snapshot(document: vscode.TextDocument): Snapshot {
   const raw = getRawDocument(document);
   const previous = snapshots.get(raw);

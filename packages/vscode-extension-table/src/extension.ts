@@ -1,9 +1,11 @@
 import * as vscode from 'vscode';
-import { parseGeometricTable, formatGeometricTable, formatBoxDrawingTable, simplifyTable } from '@edumark/table-engine';
+import { parseGeometricTable, formatGeometricTable, formatBoxDrawingTable, simplifyTable, normalizeTableBorders } from '@edumark/table-engine';
 import { TableCell, TableNode } from '@edumark/shared';
 import { createLogger, isSupportedFile } from './extension-support';
-import { getTableDocument, getTableEditor, getPhysicalTableText, getTableChangeEvent, replaceTable, createTableEdit, toEditorPosition, getRawDocument } from './table-document';
+import { getTableDocument, getTableEditor, getPhysicalTableText, getTableChangeEvent, replaceTable, createTableEdit, toEditorPosition, getRawDocument, getPreviousTableLines } from './table-document';
 import { reformatTable } from './table-reformat';
+import { editNestedTable, focusTable, formatNestedTable, hasNestedTables, nestedTableSeed, tableBlockAt, nestedCellRanges } from './table-nesting';
+import type { TableBlock, TableFocus, TableResult } from './table-nesting';
 import {
   getCellAtPosition,
   getLineBoundaryPos,
@@ -84,6 +86,72 @@ export function activate(context: vscode.ExtensionContext) {
     return success;
   }
 
+  function nestedBlock(editor: vscode.TextEditor): TableBlock | undefined {
+    const lines = getPhysicalTableText(editor.document, 0, editor.document.lineCount - 1).split('\n');
+    return tableBlockAt(lines, editor.selection.active);
+  }
+
+  async function applyNestedResult(editor: vscode.TextEditor, block: TableBlock, result: TableResult, lineDelta = 0) {
+    if (debounceTimer) clearTimeout(debounceTimer);
+    debounceTimer = undefined;
+    activeTable = undefined;
+    pendingFormat = false;
+    bufferedChanges = [];
+    isFormatting = true;
+    isApplyingExtensionEdit = true;
+    try {
+      const document = editor.document;
+      const end = Math.min(document.lineCount - 1, block.end + lineDelta);
+      const edit = new vscode.WorkspaceEdit();
+      replaceTable(edit, document, new vscode.Range(block.start, 0, end, document.lineAt(end).text.length), result.text);
+      if (await applyWorkspaceEdit(edit, document)) {
+        const next = new vscode.Position(block.start + result.cursor.line, result.cursor.character);
+        editor.selection = new vscode.Selection(next, next);
+      }
+    } finally {
+      isApplyingExtensionEdit = false;
+      isFormatting = false;
+    }
+  }
+
+  async function applyNestedLayout(editor: vscode.TextEditor, block: TableBlock, focus: TableFocus) {
+    const line = normalizeTableBorders(focus.text).split('\n')[focus.cursor.line] || '';
+    const before = line.slice(0, focus.cursor.character);
+    const after = line.slice(focus.cursor.character);
+    const layoutIntent = /\| *[-=_]+$/.test(before) || /\| *$/.test(before) && /^[-=_]+/.test(after) ||
+      /[-=_]+$/.test(before) && /^ *\|/.test(after) || /^[-=_]+ *\|/.test(after) || /\|\s*\d+\s*x\s*\d+/.test(line);
+    if (!layoutIntent) {
+      await vscode.commands.executeCommand('type', { text: 'º' });
+      return;
+    }
+    // Run the existing layout engine against an isolated in-memory document.
+    // No temporary editor is opened and no unrelated document is modified.
+    let text = focus.text;
+    let version = 1;
+    const uri = vscode.Uri.parse('ataula-nested:/layout');
+    const raw = {
+      uri, eol: vscode.EndOfLine.LF, languageId: 'plaintext', isClosed: false,
+      get version() { return version; },
+      get lineCount() { return text.split('\n').length; },
+      getText() { return text; },
+      lineAt(line: number) { return { text: text.split('\n')[line], lineNumber: line }; }
+    } as vscode.TextDocument;
+    const document = getTableDocument(raw);
+    const position = new vscode.Position(focus.cursor.line, focus.cursor.character);
+    const isolated = { document, selection: new vscode.Selection(position, position) } as vscode.TextEditor;
+    const initial = text;
+    await runLayoutFormatting(isolated, document, async edit => {
+      const lines = text.split('\n');
+      const offset = (position: vscode.Position) => lines.slice(0, position.line).reduce((length, line) => length + line.length + 1, 0) + position.character;
+      for (const change of edit.get(uri).sort((a, b) => offset(b.range.start) - offset(a.range.start))) {
+        text = text.slice(0, offset(change.range.start)) + change.newText + text.slice(offset(change.range.end));
+      }
+      version++;
+      return true;
+    });
+    if (text !== initial) await applyNestedResult(editor, block, focus.replace(text, isolated.selection.active));
+  }
+
   async function formatAllTablesInDocument(document: vscode.TextDocument) {
     logToFile(`formatAllTablesInDocument called for ${document.fileName}, languageId: ${document.languageId}, isFormatting: ${isFormatting}`);
     if (isFormatting) return;
@@ -113,7 +181,7 @@ export function activate(context: vscode.ExtensionContext) {
             const tableStr = tableLines.join('\n');
             const node = parseGeometricTable(tableStr);
             if (node.cells.length > 0) {
-              const formatted = formatBoxDrawingTable(node);
+              const formatted = hasNestedTables(tableStr) ? formatNestedTable(tableStr) : formatBoxDrawingTable(node);
               if (formatted !== tableStr) {
                 const range = new vscode.Range(
                   new vscode.Position(startLineIdx, 0),
@@ -137,7 +205,7 @@ export function activate(context: vscode.ExtensionContext) {
         const tableStr = tableLines.join('\n');
         const node = parseGeometricTable(tableStr);
         if (node.cells.length > 0) {
-          const formatted = formatBoxDrawingTable(node);
+          const formatted = hasNestedTables(tableStr) ? formatNestedTable(tableStr) : formatBoxDrawingTable(node);
           if (formatted !== tableStr) {
             const range = new vscode.Range(
               new vscode.Position(startLineIdx, 0),
@@ -176,6 +244,11 @@ export function activate(context: vscode.ExtensionContext) {
 
   async function runLiveFormatting(currentEditor: vscode.TextEditor, document: vscode.TextDocument) {
     if (isFormatting || currentEditor.selections.length !== 1) return;
+
+    // A timer queued before creating/pasting a child must not re-enter the
+    // legacy single-grid editor with the newly nested document.
+    const nested = nestedBlock(currentEditor);
+    if (nested && hasNestedTables(nested.text)) { activeTable = undefined; return; }
 
     // In-memory render formatting
     if (activeTable && activeTable.documentUri.fsPath === document.uri.fsPath && activeTable.targetCursor) {
@@ -725,7 +798,7 @@ export function activate(context: vscode.ExtensionContext) {
     }
   }
 
-  async function runLayoutFormatting(currentEditor: vscode.TextEditor, document: vscode.TextDocument) {
+  async function runLayoutFormatting(currentEditor: vscode.TextEditor, document: vscode.TextDocument, applyEdit = applyWorkspaceEdit) {
     if (isFormatting) return;
 
     const position = currentEditor.selection.active;
@@ -848,7 +921,7 @@ export function activate(context: vscode.ExtensionContext) {
 
         const workspaceEdit = new vscode.WorkspaceEdit();
         replaceTable(workspaceEdit, document, range, renderedTable);
-        success = await applyWorkspaceEdit(workspaceEdit, document);
+        success = await applyEdit(workspaceEdit, document);
       } catch (err: any) {
         logToFile(`Error applying RxC format edit: ${err.message}`);
       } finally {
@@ -1038,7 +1111,7 @@ export function activate(context: vscode.ExtensionContext) {
 
         const workspaceEdit = new vscode.WorkspaceEdit();
         replaceTable(workspaceEdit, document, range, renderedTable);
-        success = await applyWorkspaceEdit(workspaceEdit, document);
+        success = await applyEdit(workspaceEdit, document);
       } catch (err: any) {
         logToFile(`Error applying live format edit (layout Tab): ${err.message}`);
       } finally {
@@ -1285,7 +1358,7 @@ export function activate(context: vscode.ExtensionContext) {
 
           const workspaceEdit = new vscode.WorkspaceEdit();
           replaceTable(workspaceEdit, document, range, newTable);
-          success = await applyWorkspaceEdit(workspaceEdit, document);
+          success = await applyEdit(workspaceEdit, document);
         } catch (err: any) {
           logToFile(`Error creating new 1x1 table in layoutTab: ${err.message}`);
         } finally {
@@ -1322,7 +1395,7 @@ export function activate(context: vscode.ExtensionContext) {
 
       const workspaceEdit = new vscode.WorkspaceEdit();
       replaceTable(workspaceEdit, document, range, renderedTable);
-      success = await applyWorkspaceEdit(workspaceEdit, document);
+      success = await applyEdit(workspaceEdit, document);
     } catch (err: any) {
       logToFile(`Error applying live format edit (layout Tab): ${err.message}`);
     } finally {
@@ -1393,6 +1466,7 @@ export function activate(context: vscode.ExtensionContext) {
 
   // Format tables live when text document changes
   const documentChangeDisposable = vscode.workspace.onDidChangeTextDocument(async event => {
+    const previousLines = getPreviousTableLines(event.document);
     event = getTableChangeEvent(event);
     updateTableContext(vscode.window.activeTextEditor);
     const lastVer = lastFormattedVersions.get(getRawDocument(event.document)) || 0;
@@ -1403,6 +1477,24 @@ export function activate(context: vscode.ExtensionContext) {
 
     if (isApplyingExtensionEdit) {
       return;
+    }
+
+    const nestedEditor = getTableEditor(vscode.window.activeTextEditor);
+    if (!isFormatting && nestedEditor?.document === event.document && previousLines && event.contentChanges.length === 1) {
+      const change = event.contentChanges[0];
+      const block = tableBlockAt(previousLines, change.range.start);
+      if (block && hasNestedTables(block.text)) {
+        activeTable = undefined;
+        if (nestedEditor.selections.length === 1) {
+          const result = editNestedTable(block.text, block.cursor,
+            { line: change.range.end.line - block.start, character: change.range.end.character }, change.text);
+          if (result) {
+            const lineDelta = change.text.split(/\r?\n/).length - 1 - (change.range.end.line - change.range.start.line);
+            await applyNestedResult(nestedEditor, block, result, lineDelta);
+          }
+        }
+        return;
+      }
     }
 
     if (isFormatting) {
@@ -2050,7 +2142,7 @@ export function activate(context: vscode.ExtensionContext) {
   function updateTableContext(rawEditor: vscode.TextEditor | undefined) {
     const editor = getTableEditor(rawEditor);
     let canEditTable = false;
-    if (editor && editor.selections.length === 1) {
+    if (editor && editor.selections.length === 1 && editor.selection.active.line < editor.document.lineCount) {
       canEditTable = /^\s*[-=_]?\|/.test(editor.document.lineAt(editor.selection.active.line).text);
     }
     vscode.commands.executeCommand('setContext', 'ataula.canEditTable', canEditTable);
@@ -2119,6 +2211,7 @@ export function activate(context: vscode.ExtensionContext) {
         tableLines.push(document.lineAt(l).text);
       }
       const tableStr = tableLines.join('\n');
+      if (hasNestedTables(tableStr)) { activeTable = undefined; return; }
       try {
         const tableNode = parseGeometricTable(tableStr, false, true, true);
         if (tableNode && tableNode.cells.length > 0) {
@@ -2203,7 +2296,7 @@ export function activate(context: vscode.ExtensionContext) {
               const tableStr = tableLines.join('\n');
               const node = parseGeometricTable(tableStr);
               if (node.cells.length > 0) {
-                const formatted = formatBoxDrawingTable(node);
+                const formatted = hasNestedTables(tableStr) ? formatNestedTable(tableStr) : formatBoxDrawingTable(node);
                 const range = new vscode.Range(
                   new vscode.Position(startLineIdx, 0),
                   new vscode.Position(i - 1, lines[i - 1].length)
@@ -2226,7 +2319,7 @@ export function activate(context: vscode.ExtensionContext) {
           const tableStr = tableLines.join('\n');
           const node = parseGeometricTable(tableStr);
           if (node.cells.length > 0) {
-            const formatted = formatBoxDrawingTable(node);
+            const formatted = hasNestedTables(tableStr) ? formatNestedTable(tableStr) : formatBoxDrawingTable(node);
             const range = new vscode.Range(
               new vscode.Position(startLineIdx, 0),
               new vscode.Position(lines.length - 1, lines[lines.length - 1].length)
@@ -2244,7 +2337,23 @@ export function activate(context: vscode.ExtensionContext) {
   // Overridden Type Command to intercept character typing inside tables
   const typeCommand = vscode.commands.registerCommand('type', async (args) => {
     const activeEditor = getTableEditor(vscode.window.activeTextEditor);
-    if (!activeEditor || !isSupportedFile(activeEditor.document) || activeEditor.selections.length !== 1 || !activeEditor.selection.isEmpty) {
+    if (!activeEditor || !isSupportedFile(activeEditor.document) || activeEditor.selections.length !== 1) {
+      await vscode.commands.executeCommand('default:type', args);
+      return;
+    }
+
+    const nested = nestedBlock(activeEditor);
+    if (nested && hasNestedTables(nested.text)) {
+      const selection = activeEditor.selection;
+      const result = editNestedTable(nested.text,
+        { line: selection.start.line - nested.start, character: selection.start.character },
+        { line: selection.end.line - nested.start, character: selection.end.character }, args.text);
+      activeTable = undefined;
+      if (result) { await applyNestedResult(activeEditor, nested, result); return; }
+      await vscode.commands.executeCommand('default:type', args);
+      return;
+    }
+    if (!activeEditor.selection.isEmpty) {
       await vscode.commands.executeCommand('default:type', args);
       return;
     }
@@ -2377,6 +2486,16 @@ export function activate(context: vscode.ExtensionContext) {
     const isTableDoc = activeEditor && isSupportedFile(activeEditor.document);
     if (!activeEditor || !isTableDoc) {
       await vscode.commands.executeCommand('type', { text: '\n' });
+      return;
+    }
+
+    const nested = nestedBlock(activeEditor);
+    if (nested && hasNestedTables(nested.text) && activeEditor.selections.length === 1) {
+      const selection = activeEditor.selection;
+      const result = editNestedTable(nested.text,
+        { line: selection.start.line - nested.start, character: selection.start.character },
+        { line: selection.end.line - nested.start, character: selection.end.character }, '\n');
+      if (result) await applyNestedResult(activeEditor, nested, result);
       return;
     }
 
@@ -2664,6 +2783,15 @@ export function activate(context: vscode.ExtensionContext) {
       return;
     }
 
+    const nested = nestedBlock(activeEditor);
+    if (nested && activeEditor.selections.length === 1) {
+      const seed = nestedTableSeed(nested.text, nested.cursor);
+      if (seed || hasNestedTables(nested.text)) {
+        await applyNestedLayout(activeEditor, nested, seed || focusTable(nested.text, nested.cursor));
+        return;
+      }
+    }
+
     const document = activeEditor.document;
     const position = activeEditor.selection.active;
     const currentLineText = document.lineAt(position.line).text;
@@ -2940,6 +3068,15 @@ export function activate(context: vscode.ExtensionContext) {
     const activeEditor = getTableEditor(vscode.window.activeTextEditor);
     if (!activeEditor) return;
 
+    const nested = nestedBlock(activeEditor);
+    if (nested && hasNestedTables(nested.text)) {
+      const ranges = nestedCellRanges(nested.text, nested.cursor);
+      if (ranges.length) activeEditor.selections = ranges.map(range => new vscode.Selection(
+        new vscode.Position(nested.start + range.start.line, range.start.character),
+        new vscode.Position(nested.start + range.end.line, range.end.character)));
+      return;
+    }
+
     const document = activeEditor.document;
     const position = activeEditor.selection.active;
     
@@ -2999,7 +3136,15 @@ export function activate(context: vscode.ExtensionContext) {
     let end = position.line;
     while (start > 0 && document.lineAt(start - 1).text.trim().startsWith('|')) start--;
     while (end + 1 < document.lineCount && document.lineAt(end + 1).text.trim().startsWith('|')) end++;
-    const formatted = reformatTable(getPhysicalTableText(document, start, end));
+    const source = getPhysicalTableText(document, start, end);
+    if (hasNestedTables(source)) {
+      const block = nestedBlock(editor)!;
+      const focus = focusTable(block.text, block.cursor);
+      const formatted = formatNestedTable(focus.text, true);
+      if (formatted) await applyNestedResult(editor, block, focus.replace(formatted, focus.cursor));
+      return;
+    }
+    const formatted = reformatTable(source);
     if (!formatted) return;
     if (debounceTimer) clearTimeout(debounceTimer);
     debounceTimer = undefined;

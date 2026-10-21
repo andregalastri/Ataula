@@ -32,6 +32,19 @@ async function format(editor: vscode.TextEditor) {
   await settle();
 }
 
+function box(lines: string[]): string {
+  const width = Math.max(1, ...lines.map(line => line.length)) + 2;
+  return ['┌' + '─'.repeat(width) + '┐', ...lines.map(line => '│ ' + line.padEnd(width - 2) + ' │'), '└' + '─'.repeat(width) + '┘'].join('\n');
+}
+const innerBox = '┌───┬───┐\n│ A │ B │\n└───┴───┘';
+function nestedBox(inner = innerBox) { return box(['Before', '', ...inner.split('\n'), '', 'After']); }
+function cursorAt(editor: vscode.TextEditor, text: string, offset: number) {
+  const lines = editor.document.getText().split(/\r?\n/);
+  const line = lines.findIndex(line => line.includes(text));
+  assert.ok(line >= 0, `Missing ${text}`);
+  cursor(editor, line, lines[line].indexOf(text) + offset);
+}
+
 suite('Galastri Ataula in the VS Code extension host', () => {
   teardown(async () => {
     await vscode.commands.executeCommand('workbench.action.revertAndCloseActiveEditor');
@@ -269,6 +282,142 @@ suite('Galastri Ataula in the VS Code extension host', () => {
     await vscode.commands.executeCommand('ataula.convertToMarkdown');
     await settle();
     assert.equal(editor.document.getText(), markdown);
+  });
+
+  test('formats a nested box without projecting its columns through the prose', async () => {
+    const wide = nestedBox().split('\n').map(line => line.slice(0, -1) + (line.startsWith('│') ? '    │' : '────' + line.slice(-1))).join('\n');
+    const editor = await open(wide);
+    await format(editor);
+    assert.equal(editor.document.getText(), nestedBox());
+  });
+
+  test('types inside the inner table and grows both boxes', async () => {
+    const editor = await open(nestedBox());
+    cursorAt(editor, '│ A │', 3);
+    await settle();
+    await vscode.commands.executeCommand('type', {text:'long'});
+    await settle();
+    assert.equal(editor.document.getText(), nestedBox('┌───────┬───┐\n│ Along │ B │\n└───────┴───┘'));
+    assert.equal(editor.document.lineAt(editor.selection.active.line).text.slice(0, editor.selection.active.character).endsWith('Along'), true);
+  });
+
+  test('Enter inside a child keeps its sibling cell and the outer prose', async () => {
+    const editor = await open(nestedBox());
+    cursorAt(editor, '│ A │', 3);
+    await settle();
+    await vscode.commands.executeCommand('ataula.tableEnter');
+    await settle();
+    await vscode.commands.executeCommand('type', {text:'X'});
+    await settle();
+    assert.equal(editor.document.getText(), nestedBox('┌───┬───┐\n│ A │ B │\n│ X │   │\n└───┴───┘'));
+  });
+
+  test('native multiline paste inside a child preserves all enclosing borders', async () => {
+    const editor = await open(nestedBox());
+    cursorAt(editor, '│ A │', 3);
+    await settle();
+    await editor.edit(builder => builder.insert(editor.selection.active, 'long\nX'));
+    await settle();
+    assert.equal(editor.document.getText(), nestedBox('┌───────┬───┐\n│ Along │ B │\n│ X     │   │\n└───────┴───┘'));
+  });
+
+  test('Backspace in a child shrinks all enclosing boxes', async () => {
+    const editor = await open(nestedBox('┌────┬───┐\n│ AX │ B │\n└────┴───┘'));
+    cursorAt(editor, 'AX', 2);
+    await settle();
+    await vscode.commands.executeCommand('deleteLeft');
+    await settle();
+    assert.equal(editor.document.getText(), nestedBox());
+  });
+
+  test('replaces a selected word inside a nested cell', async () => {
+    const editor = await open(nestedBox('┌────┬───┐\n│ AX │ B │\n└────┴───┘'));
+    cursorAt(editor, 'AX', 0);
+    const start = editor.selection.active;
+    editor.selection = new vscode.Selection(start, start.translate(0, 2));
+    await settle();
+    await vscode.commands.executeCommand('type', {text:'Z'});
+    await settle();
+    assert.ok(editor.document.getText().includes('│ Z'));
+    assert.ok(editor.document.getText().includes('│ B │'));
+    assert.ok(editor.document.getText().includes('After'));
+  });
+
+  test('creates a child from |2x2 without subdividing the enclosing box', async () => {
+    const editor = await open(box(['Before', '|2x2', 'After']));
+    cursorAt(editor, '|2x2', 4);
+    await settle();
+    await vscode.commands.executeCommand('ataula.tableTab');
+    await settle();
+    const child = '┌───┬───┐\n│   │   │\n├───┼───┤\n│   │   │\n└───┴───┘';
+    assert.equal(editor.document.getText(), box(['Before', ...child.split('\n'), 'After']));
+    await vscode.commands.executeCommand('type', {text:'X'});
+    await settle();
+    assert.ok(editor.document.getText().includes('│ │ X │   │ │'));
+  });
+
+  test('reformats inner padding while preserving the surrounding block', async () => {
+    const padded = '┌─────┬─────┐\n│   A │   B │\n└─────┴─────┘';
+    const editor = await open(nestedBox(padded));
+    cursorAt(editor, '   A', 3);
+    await settle();
+    await vscode.commands.executeCommand('ataula.reformatTable');
+    await settle();
+    assert.equal(editor.document.getText(), nestedBox());
+  });
+
+  test('supports three nested levels inside a block comment', async () => {
+    const content = ['/*', ...box(['Level 1', ...nestedBox().split('\n'), 'End']).split('\n').map(line => ' * ' + line), ' */'].join('\n');
+    const editor = await open(content, 'php');
+    cursorAt(editor, '│ A │', 3);
+    await settle();
+    await vscode.commands.executeCommand('type', {text:'Z'});
+    await settle();
+    const expected = ['/*', ...box(['Level 1', ...nestedBox('┌────┬───┐\n│ AZ │ B │\n└────┴───┘').split('\n'), 'End']).split('\n').map(line => ' * ' + line), ' */'].join('\n');
+    assert.equal(editor.document.getText(), expected);
+  });
+
+  test('keeps native multiple cursors in nested tables', async () => {
+    const editor = await open(nestedBox());
+    cursorAt(editor, '│ A │', 2);
+    const first = editor.selection.active;
+    editor.selections = [new vscode.Selection(first, first), new vscode.Selection(first.translate(0, 4), first.translate(0, 4))];
+    await settle();
+    await vscode.commands.executeCommand('type', {text:'X'});
+    await settle();
+    assert.equal(editor.selections.length, 2);
+    assert.ok(editor.document.getText().includes('XA'));
+    assert.ok(editor.document.getText().includes('XB'));
+  });
+
+  test('selects the innermost cell content', async () => {
+    const editor = await open(nestedBox());
+    cursorAt(editor, '│ A │', 3);
+    await settle();
+    await vscode.commands.executeCommand('ataula.selectCellContent');
+    await settle();
+    assert.equal(editor.selections.map(selection => editor.document.getText(selection)).join('\n'), 'A');
+  });
+
+  test('uses the existing layout marker to add a column only to the child', async () => {
+    const editor = await open(nestedBox(innerBox.replace('┐', '┐-')));
+    cursorAt(editor, '┐-', 2);
+    await settle();
+    await vscode.commands.executeCommand('ataula.tableTab');
+    await settle();
+    assert.equal(editor.document.getText(), nestedBox('┌───┬───┬───┐\n│ A │ B │   │\n└───┴───┴───┘'));
+  });
+
+  test('replaces multiple lines inside a child without deleting its separators', async () => {
+    const editor = await open(nestedBox('┌────┬───┐\n│ AX │ B │\n│ Y  │   │\n└────┴───┘'));
+    cursorAt(editor, 'AX', 1);
+    const start = editor.selection.active;
+    cursorAt(editor, '│ Y', 2);
+    editor.selection = new vscode.Selection(start, editor.selection.active);
+    await settle();
+    await vscode.commands.executeCommand('type', {text:'Z'});
+    await settle();
+    assert.equal(editor.document.getText(), nestedBox('┌─────┬───┐\n│ AZY │ B │\n└─────┴───┘'));
   });
 
 });
