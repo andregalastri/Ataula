@@ -45,6 +45,14 @@ As bordas podem ter indentação ou prefixos de comentário/citação: `>`, `*`,
 
 **Ctrl + Alt + ↑/↓**, Shift + setas e seleções retangulares usam o comportamento nativo do VS Code. Durante a digitação com vários cursores, a extensão não reposiciona seleções nem reformata automaticamente; para ajustar as bordas depois, deixe um único cursor na tabela e execute **Refazer formatação**.
 
+## Blocos e tabelas aninhados
+
+Uma célula pode conter texto e outras tabelas de borda simples. Ao editar uma tabela interna, apenas suas células são reorganizadas; os blocos externos ajustam o tamanho para acomodá-la.
+
+Para criar uma tabela interna, deixe uma linha da célula contendo apenas `|2x2` (ou `|-`) e execute o comando de estrutura, usando seu atalho habitual. O cursor vai para a primeira célula da nova tabela. O mesmo procedimento funciona em mais níveis de aninhamento.
+
+**Refazer formatação** atua na tabela mais interna sob o cursor e ajusta os blocos que a contêm. Com o cursor no texto externo, reformata o bloco externo e suas tabelas internas. Digitação, Enter, colagem e exclusão preservam os níveis de aninhamento; os prefixos de comentários e citações continuam disponíveis.
+
 ## Instalação pessoal
 
 A extensão tem o identificador `andregalastri.ataula-personal` e aparece como **Galastri Ataula**. Desinstale ou desative a Ataula original antes de usá-la: ambas registram os mesmos comandos.
